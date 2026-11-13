@@ -71,7 +71,7 @@ runs:
         fi
 
         set +e
-        npx --yes "$tool" actormap "${args[@]}"
+        npx --yes --package="$tool" actormap "${args[@]}"
         status=$?
         set -e
 

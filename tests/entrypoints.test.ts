@@ -58,7 +58,8 @@ test("action.yml 存在、是 composite，并且调用的是 gate", () => {
 	const action = read("action.yml");
 	assert.match(action, /^name: ActorMap Gate/m);
 	assert.match(action, /using: composite/);
-	assert.match(action, /npx --yes "\$tool" actormap/);
+	// 必须是 --package= 形式：直接写 npx <spec> actormap 会把 actormap 当成参数传给默认 bin
+	assert.match(action, /npx --yes --package="\$tool" actormap/);
 	assert.match(action, /args=\(gate --ir "\$IR"\)/);
 	assert.match(action, /branding:/);
 	assert.match(action, /icon: map/);
