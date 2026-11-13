@@ -108,3 +108,23 @@ test("/map 汇总能读出现有 IR", () => {
 		rmSync(cwd, { recursive: true, force: true });
 	}
 });
+
+test("导出三份投影 + 漂移检测都能从工具层调通", async () => {
+	const { exportTool, driftTool } = await import("../src/extension/handlers.ts");
+	const cwd = workspace();
+	try {
+		addActorTool({ id: "u", name: "用户", type: "human" }, cwd);
+		addAssertionTool({ from: "∅", action: "create", to: "draft", by: "u", source: "建" }, cwd);
+		addAssertionTool({ from: "draft", action: "submit", to: "submitted", by: "u", source: "提交" }, cwd);
+
+		const exported = exportTool({}, cwd);
+		assert.match(exported.text, /tools\.json/);
+		assert.ok(existsSync(join(cwd, ".actormap", "export", "openapi.yaml")));
+		assert.ok(existsSync(join(cwd, ".actormap", "export", "acceptance.md")));
+
+		const drift = driftTool({ path: cwd }, cwd);
+		assert.match(drift.text, /IR 独有/);
+	} finally {
+		rmSync(cwd, { recursive: true, force: true });
+	}
+});

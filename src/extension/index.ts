@@ -14,11 +14,21 @@ import {
 	addActorTool,
 	addAssertionTool,
 	changeTool,
+	driftTool,
+	exportTool,
 	mapSummary,
 	scanTool,
 	validateTool,
 } from "./handlers.ts";
-import type { AddActorParams, AddAssertionParams, ChangeParams, ScanParams, ValidateParams } from "./handlers.ts";
+import type {
+	AddActorParams,
+	AddAssertionParams,
+	ChangeParams,
+	DriftParams,
+	ExportParams,
+	ScanParams,
+	ValidateParams,
+} from "./handlers.ts";
 
 const ACTOR_TYPE_SCHEMA = Type.Union([
 	Type.Literal("human"),
@@ -152,6 +162,38 @@ export default function actorMapExtension(pi: ExtensionAPI) {
 			}),
 			async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 				const result = scanTool(params as ScanParams, cwdOf(ctx));
+				return { content: [{ type: "text", text: result.text }], details: result.details };
+			},
+		}),
+	);
+
+	pi.registerTool(
+		defineTool({
+			name: "ir_export",
+			label: "导出给下游",
+			description:
+				"把断言清单导出成三份可直接使用的东西：tools.json（给 agent 的工具表）、openapi.yaml（给后端）、acceptance.md（给 QA 的验收用例，含反例）。三者来自同一个状态机，所以不会互相漂移。",
+			parameters: Type.Object({
+				dir: Type.Optional(Type.String({ description: "输出目录，默认 .actormap/export" })),
+			}),
+			async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+				const result = exportTool(params as ExportParams, cwdOf(ctx));
+				return { content: [{ type: "text", text: result.text }], details: result.details };
+			},
+		}),
+	);
+
+	pi.registerTool(
+		defineTool({
+			name: "ir_drift",
+			label: "漂移检测",
+			description:
+				"把代码仓库扫一遍，和已确认的断言做比对：代码里有但 IR 没确认的（偷偷加的需求）、IR 确认了但代码里没有的（没实现）。两个方向都值得追问。",
+			parameters: Type.Object({
+				path: Type.Optional(Type.String({ description: "仓库路径，默认当前目录" })),
+			}),
+			async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+				const result = driftTool(params as DriftParams, cwdOf(ctx));
 				return { content: [{ type: "text", text: result.text }], details: result.details };
 			},
 		}),

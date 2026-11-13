@@ -61,7 +61,7 @@ AI：落了两条：
 最后那一问不是 AI 聪明，是校验器算出来的：两条区间的并集没覆盖 `(3000, 5000]`。
 **缺口不是失败，缺口就是下一次对话的议程。**
 
-## 五个工具
+## 七个工具
 
 模型改不了 IR 文件，只能走工具 —— 格式错误在类型边界就被挡住，幻觉没有落库的路径。
 
@@ -72,6 +72,8 @@ AI：落了两条：
 | `ir_change` | 改需求：带 `reason` 的变更集，自动算影响面 |
 | `ir_validate` | 零 LLM 校验，返回错误 + 「该问什么」 |
 | `ir_scan` | 从代码仓库反抽骨架，只收有 `file:line` 证据的迁移 |
+| `ir_drift` | 代码和 IR 双向比对：偷偷加的需求 / 没实现的需求 |
+| `ir_export` | 导出 tools.json + openapi.yaml + acceptance.md |
 
 ## 校验器会抓什么
 
@@ -141,9 +143,25 @@ actormap validate                          # 有 error 时退出码 1，可当 C
 actormap report --out .actormap/map.md
 actormap render --out .actormap/map.html
 actormap scan <repo> [--seed] [--force]
+actormap drift <repo>                      # 代码多了没确认的迁移 → 退出码 1
+actormap export --out .actormap/export
 actormap change --reason "…" --file changes.json
 actormap history
 ```
+
+## 一份来源，三份交付
+
+```bash
+actormap export
+```
+
+```
+.actormap/export/tools.json       agent 的工具表，条件里的变量直接变成参数
+.actormap/export/openapi.yaml     每个动作一个 path
+.actormap/export/acceptance.md    QA 的验收用例，含每条条件的反例
+```
+
+三者都是同一个状态机的投影，所以永远不会互相漂移 —— 需求改一次，三份一起变。
 
 ## IR 长什么样
 
@@ -195,10 +213,10 @@ src/extension/index.ts   pi 绑定层，只声明 schema
 
 ## 还没做的
 
-- 跨角色会话与矛盾检测（同一个 PM 换帽子时前后不一致）
-- IR → 契约测试 / OpenAPI 骨架的实际生成
-- PR 漂移检测（实现里出现 IR 没有的迁移）
-- Web UI（当前是终端对话 + 生成的 HTML 地图）
+- 跨角色的说法前后不一致检测（同一个 PM 换个帽子说了相反的话）
+- 真正可执行的契约测试（现在导出的是验收表和反例清单，还不是能跑的测试代码）
+- 接入 CI 的 PR 门禁（`drift` 已经能返回非零退出码，缺一个 GitHub Action）
+- 图形化编辑（当前是终端对话 + 生成的自包含 HTML 地图）
 
 ## 许可证
 

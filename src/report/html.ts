@@ -113,7 +113,7 @@ function renderGraph(graph: EntityGraph, assertions: Assertion[]): string {
 			const to = nodes.get(a.to);
 			if (!to) continue;
 			parts.push(
-				`<path d="M ${to.x - 34} ${to.y + NODE_H / 2} L ${to.x} ${to.y + NODE_H / 2}" class="edge create ${a.status}"/>`,
+				`<path d="M ${to.x - 34} ${to.y + NODE_H / 2} L ${to.x} ${to.y + NODE_H / 2}" class="edge create ${a.status}" data-f="∅" data-t="${esc(a.to)}"/>`,
 			);
 			continue;
 		}
@@ -122,16 +122,16 @@ function renderGraph(graph: EntityGraph, assertions: Assertion[]): string {
 		if (!to) continue;
 		if (!from) continue;
 		const assumed = a.status === "assumed" ? "assumed" : "confirmed";
-		parts.push(`<path d="${edgePath(from, to)}" class="edge ${assumed}" marker-end="url(#arrow)"/>`);
+		parts.push(`<path d="${edgePath(from, to)}" class="edge ${assumed}" data-f="${esc(a.from)}" data-t="${esc(a.to)}" marker-end="url(#arrow)"/>`);
 		const mx = (from.x + to.x) / 2 + NODE_W / 2;
 		const my = (from.y + to.y) / 2 + NODE_H / 2 - 6;
-		parts.push(`<text x="${mx}" y="${my}" class="edge-label">${esc(a.action)}</text>`);
+		parts.push(`<text x="${mx}" y="${my}" class="edge-label" data-f="${esc(a.from)}" data-t="${esc(a.to)}">${esc(a.action)}</text>`);
 	}
 
 	for (const node of nodes.values()) {
 		const kind = node.terminal ? "terminal" : node.initial ? "initial" : "state";
 		parts.push(
-			`<g class="node ${kind}"><rect x="${node.x}" y="${node.y}" width="${NODE_W}" height="${NODE_H}" rx="10"/><text x="${node.x + NODE_W / 2}" y="${node.y + NODE_H / 2 + 5}">${esc(node.state)}</text></g>`,
+			`<g class="node ${kind}" data-state="${esc(node.state)}"><rect x="${node.x}" y="${node.y}" width="${NODE_W}" height="${NODE_H}" rx="10"/><text x="${node.x + NODE_W / 2}" y="${node.y + NODE_H / 2 + 5}">${esc(node.state)}</text></g>`,
 		);
 	}
 	parts.push("</svg>");
@@ -188,7 +188,12 @@ export function renderHTML(ir: IRFile, result: ValidationResult): string {
   .stats { display:flex; gap:16px; flex-wrap:wrap; margin:12px 0 20px; color:var(--muted); font-size:13px; }
   .stats b { color:var(--fg); }
   .card { border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:20px; overflow-x:auto; background:var(--card); }
-  .graph { color:var(--muted); display:block; }
+  .graph { color:var(--muted); display:block; cursor:pointer; }
+  g.node { cursor:pointer; }
+  g.node:hover rect { stroke:var(--fg); }
+  svg.dim path.edge:not(.hl), svg.dim text.edge-label:not(.hl) { opacity:.12; }
+  svg.dim path.edge.hl { stroke-width:2.6; }
+  body.only-assumed tr.confirmed, body.only-assumed path.confirmed, body.only-assumed text.confirmed { display:none; }
   .node rect { fill:var(--bg); stroke:var(--line); stroke-width:1.5; }
   .node text { fill:var(--fg); font-size:13px; text-anchor:middle; }
   .node.initial rect { stroke:var(--ok); stroke-width:2.5; }
@@ -208,6 +213,7 @@ export function renderHTML(ir: IRFile, result: ValidationResult): string {
   ul.issues li.warn { border-color:var(--warn); }
   .tag { font-weight:600; margin-right:6px; }
   .ask { color:var(--muted); font-size:12px; margin-top:4px; }
+  .toggle { display:flex; gap:6px; align-items:center; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -219,9 +225,36 @@ export function renderHTML(ir: IRFile, result: ValidationResult): string {
     <span>✖ <b>${result.stats.errors}</b> 错误</span>
     <span>⚠ <b>${result.stats.warnings}</b> 待确认项</span>
     <span><b>${result.stats.actors}</b> 个角色</span>
+    <label class="toggle"><input type="checkbox" id="only-assumed"> 只看待确认</label>
   </div>
 
   ${graphs || '<div class="card"><p class="muted">还没有任何断言。</p></div>'}
+
+  <script>
+    (function () {
+      document.querySelectorAll('svg.graph').forEach(function (svg) {
+        svg.addEventListener('click', function (event) {
+          var group = event.target.closest('g.node');
+          var state = group ? group.getAttribute('data-state') : null;
+          var already = svg.classList.contains('dim');
+          svg.classList.remove('dim');
+          svg.querySelectorAll('.hl').forEach(function (el) { el.classList.remove('hl'); });
+          if (!state || already) return;
+          svg.classList.add('dim');
+          svg.querySelectorAll('[data-f="' + state + '"], [data-t="' + state + '"]').forEach(function (el) {
+            if (el.tagName === 'path') el.classList.add('hl');
+            if (el.tagName === 'text') el.classList.add('hl');
+          });
+        });
+      });
+      var toggle = document.getElementById('only-assumed');
+      if (toggle) {
+        toggle.addEventListener('change', function () {
+          document.body.classList.toggle('only-assumed', toggle.checked);
+        });
+      }
+    })();
+  </script>
 
   <section class="card">
     <h2>缺口 <span class="muted">每条都带着下一句该问的话</span></h2>

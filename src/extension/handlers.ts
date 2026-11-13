@@ -14,6 +14,8 @@ import { formatIssues, validate } from "../validate/validate.ts";
 import { renderChecklist } from "../report/checklist.ts";
 import { renderHTML } from "../report/html.ts";
 import { formatScanReport, scanRepo } from "../scan/scanner.ts";
+import { exportAll } from "../export/index.ts";
+import { formatDrift, scanAndDrift } from "../scan/drift.ts";
 
 export interface HandlerResult {
 	text: string;
@@ -166,4 +168,43 @@ export function mapSummary(cwd: string, product?: string): string {
 		`地图：${html}`,
 		`IR：${path}`,
 	].join("\n");
+}
+
+export interface ExportParams {
+	dir?: string;
+}
+
+export function exportTool(params: ExportParams, cwd: string): HandlerResult {
+	const { ir } = load(cwd);
+	const outDir = resolve(cwd, params.dir ?? ".actormap/export");
+	mkdirSync(outDir, { recursive: true });
+	const files = exportAll(ir);
+	const written: string[] = [];
+	for (const [name, content] of Object.entries(files)) {
+		const target = join(outDir, name);
+		writeFileSync(target, content, "utf8");
+		written.push(target);
+	}
+	return {
+		text: `已导出（同一个状态机的三个投影）：\n${written.map((p) => `  · ${p}`).join("\n")}`,
+		details: { written },
+	};
+}
+
+export interface DriftParams {
+	path?: string;
+}
+
+export function driftTool(params: DriftParams, cwd: string): HandlerResult {
+	const { ir } = load(cwd);
+	const repo = resolve(cwd, params.path ?? ".");
+	const report = scanAndDrift(ir, repo);
+	return {
+		text: formatDrift(report),
+		details: {
+			matched: report.matched,
+			onlyInCode: report.onlyInCode.map((d) => ({ assertion: d.assertion, reason: d.reason })),
+			onlyInIR: report.onlyInIR.map((d) => ({ assertion: d.assertion, reason: d.reason })),
+		},
+	};
 }

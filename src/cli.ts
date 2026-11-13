@@ -13,7 +13,9 @@ import { applyChangeSet, formatImpact } from "./ir/changes.ts";
 import { formatIssues, validate } from "./validate/validate.ts";
 import { renderChecklist } from "./report/checklist.ts";
 import { renderHTML } from "./report/html.ts";
+import { exportAll } from "./export/index.ts";
 import { formatScanReport, scanRepo } from "./scan/scanner.ts";
+import { formatDrift, scanAndDrift } from "./scan/drift.ts";
 
 const argv = process.argv.slice(2);
 const command = argv[0] ?? "report";
@@ -132,6 +134,28 @@ switch (command) {
 		break;
 	}
 
+	case "export": {
+		const ir = loadOrExit();
+		const outDir = flag("out") ?? ".actormap";
+		const files = exportAll(ir);
+		const written: string[] = [];
+		for (const [name, content] of Object.entries(files)) {
+			written.push(writeOut(joinSafe(outDir, name), content));
+		}
+		console.log(`已导出 ${written.length} 份（同一个状态机的三个投影）：`);
+		for (const path of written) console.log(`  ${path}`);
+		break;
+	}
+
+	case "drift": {
+		const ir = loadOrExit();
+		const repo = resolve(process.cwd(), flag("repo") ?? positional[0] ?? ".");
+		const report = scanAndDrift(ir, repo);
+		console.log(formatDrift(report));
+		process.exitCode = report.onlyInCode.length > 0 ? 1 : 0;
+		break;
+	}
+
 	case "history": {
 		const ir = loadOrExit();
 		const sets = ir.changesets ?? [];
@@ -159,7 +183,7 @@ switch (command) {
 
 	default:
 		console.error(
-			`未知命令：${command}\n用法：\n  actormap init [产品名]\n  actormap validate\n  actormap report [--out f.md]\n  actormap render [--out .actormap/map.html]\n  actormap scan [repo] [--seed] [--force]\n  actormap change --reason "…" --file changes.json\n  actormap history\n  通用参数：--ir <path>`,
+			`未知命令：${command}\n用法：\n  actormap init [产品名]\n  actormap validate\n  actormap report [--out f.md]\n  actormap render [--out .actormap/map.html]\n  actormap scan [repo] [--seed] [--force]\n  actormap drift [repo]\n  actormap export [--out 目录]\n  actormap change --reason "…" --file changes.json\n  actormap history\n  通用参数：--ir <path>`,
 		);
 		process.exit(2);
 }

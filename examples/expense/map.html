@@ -15,7 +15,12 @@
   .stats { display:flex; gap:16px; flex-wrap:wrap; margin:12px 0 20px; color:var(--muted); font-size:13px; }
   .stats b { color:var(--fg); }
   .card { border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:20px; overflow-x:auto; background:var(--card); }
-  .graph { color:var(--muted); display:block; }
+  .graph { color:var(--muted); display:block; cursor:pointer; }
+  g.node { cursor:pointer; }
+  g.node:hover rect { stroke:var(--fg); }
+  svg.dim path.edge:not(.hl), svg.dim text.edge-label:not(.hl) { opacity:.12; }
+  svg.dim path.edge.hl { stroke-width:2.6; }
+  body.only-assumed tr.confirmed, body.only-assumed path.confirmed, body.only-assumed text.confirmed { display:none; }
   .node rect { fill:var(--bg); stroke:var(--line); stroke-width:1.5; }
   .node text { fill:var(--fg); font-size:13px; text-anchor:middle; }
   .node.initial rect { stroke:var(--ok); stroke-width:2.5; }
@@ -35,6 +40,7 @@
   ul.issues li.warn { border-color:var(--warn); }
   .tag { font-weight:600; margin-right:6px; }
   .ask { color:var(--muted); font-size:12px; margin-top:4px; }
+  .toggle { display:flex; gap:6px; align-items:center; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -46,35 +52,62 @@
     <span>✖ <b>0</b> 错误</span>
     <span>⚠ <b>2</b> 待确认项</span>
     <span><b>4</b> 个角色</span>
+    <label class="toggle"><input type="checkbox" id="only-assumed"> 只看待确认</label>
   </div>
 
   <section class="card">
   <h2>order <span class="muted">入口 draft · 终态 closed / paid</span></h2>
   <svg viewBox="0 0 1108 392" width="1108" height="392" class="graph">
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
-<path d="M 14 62 L 48 62" class="edge create confirmed"/>
-<path d="M 180 62 C 240 62, 208 62, 268 62" class="edge confirmed" marker-end="url(#arrow)"/>
-<text x="224" y="56" class="edge-label">submit</text>
-<path d="M 400 62 C 460 62, 428 62, 488 62" class="edge confirmed" marker-end="url(#arrow)"/>
-<text x="444" y="56" class="edge-label">approve</text>
-<path d="M 400 62 C 460 62, 428 270, 488 270" class="edge confirmed" marker-end="url(#arrow)"/>
-<text x="444" y="160" class="edge-label">escalate</text>
-<path d="M 400 62 C 576 62, -128 62, 48 62" class="edge confirmed" marker-end="url(#arrow)"/>
-<text x="224" y="56" class="edge-label">reject</text>
-<path d="M 620 62 C 680 62, 648 62, 708 62" class="edge confirmed" marker-end="url(#arrow)"/>
-<text x="664" y="56" class="edge-label">pay</text>
-<path d="M 620 270 C 686 270, 422 62, 488 62" class="edge assumed" marker-end="url(#arrow)"/>
-<text x="554" y="160" class="edge-label">confirm</text>
-<path d="M 400 62 C 460 62, 428 166, 488 166" class="edge confirmed" marker-end="url(#arrow)"/>
-<text x="444" y="108" class="edge-label">auto_close</text>
-<g class="node initial"><rect x="48" y="40" width="132" height="44" rx="10"/><text x="114" y="67">draft</text></g>
-<g class="node state"><rect x="268" y="40" width="132" height="44" rx="10"/><text x="334" y="67">submitted</text></g>
-<g class="node state"><rect x="488" y="40" width="132" height="44" rx="10"/><text x="554" y="67">approved</text></g>
-<g class="node terminal"><rect x="488" y="144" width="132" height="44" rx="10"/><text x="554" y="171">closed</text></g>
-<g class="node state"><rect x="488" y="248" width="132" height="44" rx="10"/><text x="554" y="275">pending_finance</text></g>
-<g class="node terminal"><rect x="708" y="40" width="132" height="44" rx="10"/><text x="774" y="67">paid</text></g>
+<path d="M 14 62 L 48 62" class="edge create confirmed" data-f="∅" data-t="draft"/>
+<path d="M 180 62 C 240 62, 208 62, 268 62" class="edge confirmed" data-f="draft" data-t="submitted" marker-end="url(#arrow)"/>
+<text x="224" y="56" class="edge-label" data-f="draft" data-t="submitted">submit</text>
+<path d="M 400 62 C 460 62, 428 62, 488 62" class="edge confirmed" data-f="submitted" data-t="approved" marker-end="url(#arrow)"/>
+<text x="444" y="56" class="edge-label" data-f="submitted" data-t="approved">approve</text>
+<path d="M 400 62 C 460 62, 428 270, 488 270" class="edge confirmed" data-f="submitted" data-t="pending_finance" marker-end="url(#arrow)"/>
+<text x="444" y="160" class="edge-label" data-f="submitted" data-t="pending_finance">escalate</text>
+<path d="M 400 62 C 576 62, -128 62, 48 62" class="edge confirmed" data-f="submitted" data-t="draft" marker-end="url(#arrow)"/>
+<text x="224" y="56" class="edge-label" data-f="submitted" data-t="draft">reject</text>
+<path d="M 620 62 C 680 62, 648 62, 708 62" class="edge confirmed" data-f="approved" data-t="paid" marker-end="url(#arrow)"/>
+<text x="664" y="56" class="edge-label" data-f="approved" data-t="paid">pay</text>
+<path d="M 620 270 C 686 270, 422 62, 488 62" class="edge assumed" data-f="pending_finance" data-t="approved" marker-end="url(#arrow)"/>
+<text x="554" y="160" class="edge-label" data-f="pending_finance" data-t="approved">confirm</text>
+<path d="M 400 62 C 460 62, 428 166, 488 166" class="edge confirmed" data-f="submitted" data-t="closed" marker-end="url(#arrow)"/>
+<text x="444" y="108" class="edge-label" data-f="submitted" data-t="closed">auto_close</text>
+<g class="node initial" data-state="draft"><rect x="48" y="40" width="132" height="44" rx="10"/><text x="114" y="67">draft</text></g>
+<g class="node state" data-state="submitted"><rect x="268" y="40" width="132" height="44" rx="10"/><text x="334" y="67">submitted</text></g>
+<g class="node state" data-state="approved"><rect x="488" y="40" width="132" height="44" rx="10"/><text x="554" y="67">approved</text></g>
+<g class="node terminal" data-state="closed"><rect x="488" y="144" width="132" height="44" rx="10"/><text x="554" y="171">closed</text></g>
+<g class="node state" data-state="pending_finance"><rect x="488" y="248" width="132" height="44" rx="10"/><text x="554" y="275">pending_finance</text></g>
+<g class="node terminal" data-state="paid"><rect x="708" y="40" width="132" height="44" rx="10"/><text x="774" y="67">paid</text></g>
 </svg>
 </section>
+
+  <script>
+    (function () {
+      document.querySelectorAll('svg.graph').forEach(function (svg) {
+        svg.addEventListener('click', function (event) {
+          var group = event.target.closest('g.node');
+          var state = group ? group.getAttribute('data-state') : null;
+          var already = svg.classList.contains('dim');
+          svg.classList.remove('dim');
+          svg.querySelectorAll('.hl').forEach(function (el) { el.classList.remove('hl'); });
+          if (!state || already) return;
+          svg.classList.add('dim');
+          svg.querySelectorAll('[data-f="' + state + '"], [data-t="' + state + '"]').forEach(function (el) {
+            if (el.tagName === 'path') el.classList.add('hl');
+            if (el.tagName === 'text') el.classList.add('hl');
+          });
+        });
+      });
+      var toggle = document.getElementById('only-assumed');
+      if (toggle) {
+        toggle.addEventListener('change', function () {
+          document.body.classList.toggle('only-assumed', toggle.checked);
+        });
+      }
+    })();
+  </script>
 
   <section class="card">
     <h2>缺口 <span class="muted">每条都带着下一句该问的话</span></h2>
