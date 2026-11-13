@@ -1,0 +1,116 @@
+{
+  "product": "报销系统",
+  "version": 7,
+  "updatedAt": "2026-11-12T08:30:00.000Z",
+  "actors": [
+    { "id": "employee", "name": "员工", "type": "human" },
+    { "id": "manager", "name": "直属主管", "type": "human" },
+    { "id": "finance", "name": "财务", "type": "human" },
+    {
+      "id": "sweeper",
+      "name": "超时关单任务",
+      "type": "system",
+      "trigger": "submitted 状态超过 30 天未处理",
+      "note": "没有界面入口，每天凌晨跑一次"
+    }
+  ],
+  "assertions": [
+    {
+      "id": "a_001",
+      "entity": "order",
+      "from": "∅",
+      "action": "create",
+      "to": "draft",
+      "by": "employee",
+      "guards": [],
+      "verify": "单据出现在「我的报销」列表",
+      "source": "员工点新建，填一张报销单",
+      "status": "confirmed"
+    },
+    {
+      "id": "a_002",
+      "entity": "order",
+      "from": "draft",
+      "action": "submit",
+      "to": "submitted",
+      "by": "employee",
+      "guards": ["金额 > 0", "已上传发票"],
+      "verify": "单据出现在主管待办",
+      "source": "员工填完点提交，有发票才能提",
+      "status": "confirmed"
+    },
+    {
+      "id": "a_003",
+      "entity": "order",
+      "from": "submitted",
+      "action": "approve",
+      "to": "approved",
+      "by": "manager",
+      "guards": ["金额 <= 5000"],
+      "verify": "状态变为已通过",
+      "source": "主管点通过",
+      "status": "confirmed"
+    },
+    {
+      "id": "a_004",
+      "entity": "order",
+      "from": "submitted",
+      "action": "escalate",
+      "to": "pending_finance",
+      "by": "manager",
+      "guards": ["金额 > 5000"],
+      "verify": "单据进入财务复核队列",
+      "source": "超过五千要财务再看一眼",
+      "status": "confirmed"
+    },
+    {
+      "id": "a_005",
+      "entity": "order",
+      "from": "submitted",
+      "action": "reject",
+      "to": "draft",
+      "by": "manager",
+      "guards": ["发票不合规"],
+      "verify": "回到员工草稿，金额不可改",
+      "source": "主管可以驳回，退回让员工改，但金额不让动",
+      "status": "confirmed"
+    },
+    {
+      "id": "a_006",
+      "entity": "order",
+      "from": "approved",
+      "action": "pay",
+      "to": "paid",
+      "by": "finance",
+      "guards": [],
+      "verify": "生成打款回执",
+      "source": "财务打款",
+      "status": "confirmed"
+    },
+    {
+      "id": "a_007",
+      "entity": "order",
+      "from": "pending_finance",
+      "action": "confirm",
+      "to": "approved",
+      "by": "finance",
+      "guards": [],
+      "verify": "进入待打款",
+      "source": "",
+      "status": "assumed"
+    },
+    {
+      "id": "a_008",
+      "entity": "order",
+      "from": "submitted",
+      "action": "auto_close",
+      "to": "closed",
+      "by": "sweeper",
+      "guards": ["now - submitted_at > 30d"],
+      "verify": "状态变为已关闭，双方各收一条通知",
+      "source": "超过三十天没批就自动关单",
+      "status": "confirmed"
+    }
+  ],
+  "terminals": ["order:paid"]
+}

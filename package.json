@@ -1,0 +1,19 @@
+{
+  "name": "actor-map",
+  "version": "0.1.0",
+  "description": "通过对话把需求聊定：把产品的角色可操作地图聊成一份带 ✔/⚠ 的断言清单",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "actormap": "./src/cli.ts"
+  },
+  "scripts": {
+    "test": "node --test \"tests/*.test.ts\"",
+    "demo": "node src/cli.ts report --ir examples/expense/ir.json",
+    "validate": "node src/cli.ts validate"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "keywords": ["requirements", "state-machine", "pi-extension", "product-management", "agent"]
+}
