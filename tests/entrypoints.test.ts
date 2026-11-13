@@ -77,3 +77,21 @@ test("action.yml 不往被检查的仓库里写工具文件", () => {
 	const action = read("action.yml");
 	assert.doesNotMatch(action, /actions\/checkout[\s\S]*actor-map/, "工具应当用 npx 取，不要 checkout 进工作区");
 });
+
+test("action.yml 里没有裸冒号的值（YAML 会把它读成嵌套映射）", () => {
+	const lines = read("action.yml").split("\n");
+	const offenders: string[] = [];
+	for (const [i, line] of lines.entries()) {
+		if (/^\s*#/.test(line)) continue;
+		const m = line.match(/^(\s{2,}[A-Za-z_-]+:)\s+(.*)$/);
+		if (!m) continue;
+		const value = m[2];
+		if (/^["'|>]/.test(value)) continue;
+		if (value.includes(": ")) offenders.push(`${i + 1}: ${line.trim()}`);
+	}
+	assert.deepEqual(offenders, [], "这些值里的 : 需要加引号，否则 action 加载会报 mapping values are not allowed");
+});
+
+test("action ref 会去掉 refs/heads/ 前缀（npx 的 git 规格不认完整 ref）", () => {
+	assert.match(read("action.yml"), /ref="\$\{ACTION_REF#refs\/heads\/\}"/);
+});

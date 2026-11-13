@@ -24,7 +24,7 @@ inputs:
     required: false
     default: "false"
   comment:
-    description: 在 PR diff 的新增行上贴行内评论（需要 pull-requests: write）
+    description: "在 PR diff 的新增行上贴行内评论（需要 pull-requests: write）"
     required: false
     default: "true"
 
@@ -58,7 +58,9 @@ runs:
         # 用 npx 现取自己：不往被检查的仓库里塞任何文件，drift 扫描不会被污染。
         # 本地 `uses: ./` 时 action_repository 可能是空的，兜底到发布仓库。
         repo="${ACTION_REPO:-eust-w/actor-map}"
-        tool="github:${repo}${ACTION_REF:+#${ACTION_REF}}"
+        ref="${ACTION_REF#refs/heads/}"
+        ref="${ref#refs/tags/}"
+        tool="github:${repo}${ref:+#${ref}}"
 
         args=(gate --ir "$IR")
         [ -n "$REPO" ] && args+=(--repo "$REPO") || args+=(--no-repo)
