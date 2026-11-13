@@ -52,7 +52,19 @@ const IGNORED_DIRS = new Set([
 	".vscode",
 	"migrations",
 	".actormap",
+	".actormap-tool",
+	// 测试里的状态赋值是造数据，不是产品行为。不排除的话门禁天天误报。
+	"tests",
+	"test",
+	"__tests__",
+	"spec",
+	"specs",
+	"fixtures",
+	"e2e",
 ]);
+
+/** 文件名层面的排除：xxx.test.ts / xxx.spec.ts / xxx.stories.ts */
+const TEST_FILE = /\.(test|spec|stories|stub|mock)\.[cm]?[jt]sx?$/i;
 
 const CODE_EXTS = new Set([
 	".ts",
@@ -101,7 +113,7 @@ function walk(root: string, limit = MAX_FILES): string[] {
 			if (info.isDirectory()) {
 				if (IGNORED_DIRS.has(name)) continue;
 				stack.push(full);
-			} else if (CODE_EXTS.has(extname(name).toLowerCase())) {
+			} else if (CODE_EXTS.has(extname(name).toLowerCase()) && !TEST_FILE.test(name)) {
 				out.push(full);
 				if (out.length >= limit) break;
 			}

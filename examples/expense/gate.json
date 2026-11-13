@@ -1,0 +1,11 @@
+{
+  "allowDrift": [
+    {
+      "from": "submitted",
+      "action": "cancel",
+      "to": "cancelled",
+      "reason": "例子：PR #42 先上，下个迭代补进 IR"
+    }
+  ],
+  "warnOnly": ["conformance"]
+}

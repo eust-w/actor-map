@@ -4,7 +4,7 @@
  * 用途：CI 门禁、评审会上放一张图、把仓库反抽成骨架。
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { Change } from "./ir/types.ts";
 import { emptyIR } from "./ir/types.ts";
@@ -17,6 +17,7 @@ import { exportAll } from "./export/index.ts";
 import { formatScanReport, scanRepo } from "./scan/scanner.ts";
 import { formatDrift, scanAndDrift } from "./scan/drift.ts";
 import { runConformance } from "./conformance/harness.ts";
+import { formatGate, gateMarkdown, loadWaivers, runGate } from "./gate/index.ts";
 import { formatConformance, summarize } from "./conformance/report.ts";
 
 const argv = process.argv.slice(2);
@@ -158,6 +159,31 @@ switch (command) {
 		break;
 	}
 
+	case "gate": {
+		const ir = loadOrExit();
+		const report = await runGate(ir, {
+			cwd: process.cwd(),
+			repo: has("no-repo") ? undefined : (flag("repo") ?? "."),
+			adapter: flag("adapter"),
+			filter: flag("filter"),
+			waivers: loadWaivers(process.cwd()),
+		});
+		const markdown = gateMarkdown(report);
+		if (has("json")) console.log(JSON.stringify(report, null, 2));
+		else if (!has("quiet")) console.log(formatGate(report));
+
+		const mdOut = flag("md-out");
+		if (mdOut) console.log(`摘要写入 ${writeOut(mdOut, markdown)}`);
+		// GitHub Actions 里自动出 step summary
+		const stepSummary = process.env.GITHUB_STEP_SUMMARY;
+		if (stepSummary) appendFileSync(stepSummary, `${markdown}\n`, "utf8");
+
+		const strict = has("strict");
+		const skipped = report.checks.filter((c) => c.status === "skip").length;
+		process.exitCode = report.ok && (!strict || skipped === 0) ? 0 : 1;
+		break;
+	}
+
 	case "conformance": {
 		const ir = loadOrExit();
 		const adapterPath = flag("adapter");
@@ -201,7 +227,7 @@ switch (command) {
 
 	default:
 		console.error(
-			`未知命令：${command}\n用法：\n  actormap init [产品名]\n  actormap validate\n  actormap report [--out f.md]\n  actormap render [--out .actormap/map.html]\n  actormap scan [repo] [--seed] [--force]\n  actormap drift [repo]\n  actormap conformance --adapter ./adapter.mjs [--filter …] [--json]\n  actormap export [--out 目录]\n  actormap change --reason "…" --file changes.json\n  actormap history\n  通用参数：--ir <path>`,
+			`未知命令：${command}\n用法：\n  actormap init [产品名]\n  actormap validate\n  actormap report [--out f.md]\n  actormap render [--out .actormap/map.html]\n  actormap scan [repo] [--seed] [--force]\n  actormap drift [repo]\n  actormap gate [--repo .] [--adapter ./adapter.mjs] [--json] [--md-out f.md] [--strict]\n  actormap conformance --adapter ./adapter.mjs [--filter …] [--json]\n  actormap export [--out 目录]\n  actormap change --reason "…" --file changes.json\n  actormap history\n  通用参数：--ir <path>`,
 		);
 		process.exit(2);
 }

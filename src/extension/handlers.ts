@@ -18,6 +18,7 @@ import { exportAll } from "../export/index.ts";
 import { formatDrift, scanAndDrift } from "../scan/drift.ts";
 import { runConformance } from "../conformance/harness.ts";
 import { formatConformance, summarize } from "../conformance/report.ts";
+import { formatGate, gateMarkdown, loadWaivers, runGate } from "../gate/index.ts";
 
 export interface HandlerResult {
 	text: string;
@@ -233,6 +234,41 @@ export async function conformanceTool(params: ConformanceParams, cwd: string): H
 				outcome: r.outcome,
 				detail: r.detail,
 			})),
+		},
+	};
+}
+
+export interface GateParams {
+	repo?: string;
+	adapter?: string;
+	filter?: string;
+	strict?: boolean;
+}
+
+/**
+ * PR 门禁：一次跑完 validate / drift / conformance，给一个裁决。
+ * 这是「需求确认」真正变成工程约束的地方 —— 前八个工具都在生产规格，
+ * 这个工具负责让规格能拦住不该合的东西。
+ */
+export async function gateTool(params: GateParams, cwd: string): HandlerResult {
+	const { ir } = load(cwd);
+	const report = await runGate(ir, {
+		cwd,
+		repo: params.repo ?? ".",
+		adapter: params.adapter,
+		filter: params.filter,
+		waivers: loadWaivers(cwd),
+	});
+	const skipped = report.checks.filter((c) => c.status === "skip").length;
+	const blocked = params.strict && skipped > 0;
+	return {
+		text: formatGate(report) + (blocked ? "\n\nstrict：有检查被跳过，按失败处理。" : ""),
+		details: {
+			ok: report.ok && !blocked,
+			blocking: report.blocking,
+			skipped,
+			checks: report.checks.map((c) => ({ id: c.id, status: c.status, summary: c.summary })),
+			markdown: gateMarkdown(report),
 		},
 	};
 }

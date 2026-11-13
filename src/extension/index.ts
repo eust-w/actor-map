@@ -16,6 +16,7 @@ import {
 	changeTool,
 	conformanceTool,
 	driftTool,
+	gateTool,
 	exportTool,
 	mapSummary,
 	scanTool,
@@ -28,6 +29,7 @@ import type {
 	ChangeParams,
 	DriftParams,
 	ExportParams,
+	GateParams,
 	ScanParams,
 	ValidateParams,
 } from "./handlers.ts";
@@ -213,6 +215,25 @@ export default function actorMapExtension(pi: ExtensionAPI) {
 			}),
 			async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 				const result = await conformanceTool(params as ConformanceParams, cwdOf(ctx));
+				return { content: [{ type: "text", text: result.text }], details: result.details };
+			},
+		}),
+	);
+
+	pi.registerTool(
+		defineTool({
+			name: "ir_gate",
+			label: "PR 门禁",
+			description:
+				"一次跑完三项检查给一个裁决：需求自洽（validate）、实现与需求一致（drift）、契约测试（conformance）。任一项失败就是不该合。支持 .actormap/gate.json 里的 allowDrift 豁免和 warnOnly 降级。",
+			parameters: Type.Object({
+				repo: Type.Optional(Type.String({ description: "要扫描的实现目录，默认当前目录；传空字符串则跳过 drift" })),
+				adapter: Type.Optional(Type.String({ description: "契约测试适配器路径，默认 .actormap/adapter.mjs" })),
+				filter: Type.Optional(Type.String({ description: "只跑某类契约用例，如 positive / a_003" })),
+				strict: Type.Optional(Type.Boolean({ description: "被跳过的检查也算失败" })),
+			}),
+			async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+				const result = await gateTool(params as GateParams, cwdOf(ctx));
 				return { content: [{ type: "text", text: result.text }], details: result.details };
 			},
 		}),

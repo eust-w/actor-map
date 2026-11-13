@@ -13,29 +13,38 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+
       - name: 单元测试（零依赖）
         run: npm test
-      - name: 校验示例 IR
-        run: node src/cli.ts validate --ir examples/expense/ir.json
+
+      - name: 门禁 · 正确实现（应通过）
+        run: |
+          node src/cli.ts gate \
+            --ir examples/expense/ir.json \
+            --repo examples/expense/service \
+            --adapter ./examples/expense/adapters/expense-service.mjs \
+            --strict \
+            --md-out .gate/pass.md
+
+      - name: 门禁 · 代码偷偷加了需求（应失败）
+        run: |
+          if node src/cli.ts gate \
+            --ir examples/expense/ir.json \
+            --repo examples/expense/service-drifted \
+            --adapter ./examples/expense/adapters/expense-service.mjs; then
+            echo "drift 没抓到偷偷加的迁移 —— 门禁失效"; exit 1
+          fi
+          echo "按预期拦下了 drift"
+
+      - name: 门禁 · 实现违反契约（应失败）
+        run: |
+          if node src/cli.ts gate \
+            --ir examples/expense/ir.json \
+            --repo examples/expense/service \
+            --adapter ./examples/expense/adapters/expense-service-broken.mjs; then
+            echo "契约测试没抓到 bug —— 门禁失效"; exit 1
+          fi
+          echo "按预期拦下了契约破坏"
+
       - name: 导出四份投影
         run: node src/cli.ts export --ir examples/expense/ir.json --out /tmp/export
-      - name: 参考状态机自检
-        run: |
-          node -e "
-          import('/tmp/export/runner.mjs').then((m) => {
-            const ok = m.apply('submitted','approve',{金额:4000},'manager');
-            const bad = m.apply('submitted','approve',{金额:9000},'manager');
-            if (!ok.allowed || ok.to !== 'approved') throw new Error('approve 该通过却没通过');
-            if (bad.allowed) throw new Error('超额的 approve 居然通过了');
-            console.log('runner ok');
-          });
-          "
-      - name: 契约测试（正确实现，应全绿）
-        run: node src/cli.ts conformance --ir examples/expense/ir.json --adapter ./examples/expense/adapters/expense-service.mjs
-      - name: 契约测试（有 bug 的实现，必须失败）
-        run: |
-          if node src/cli.ts conformance --ir examples/expense/ir.json --adapter ./examples/expense/adapters/expense-service-broken.mjs; then
-            echo "broken adapter 竟然通过了 —— 契约测试失去作用"; exit 1
-          else
-            echo "按预期抓到了 bug"
-          fi

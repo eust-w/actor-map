@@ -1,0 +1,74 @@
+name: actormap-gate
+
+# 可复用工作流：任何仓库这样用
+#
+#   jobs:
+#     spec-gate:
+#       uses: eust-w/actor-map/.github/workflows/gate-reusable.yml@main
+#       with:
+#         ir: .actormap/ir.json
+#         repo: .
+#         adapter: .actormap/adapter.mjs
+#         strict: false
+
+on:
+  workflow_call:
+    inputs:
+      ir:
+        description: IR 文件路径（相对被检查仓库根目录）
+        type: string
+        default: .actormap/ir.json
+      repo:
+        description: 要扫描的实现代码目录
+        type: string
+        default: .
+      adapter:
+        description: 契约测试适配器路径；留空则跳过 conformance
+        type: string
+        default: ""
+      strict:
+        description: 跳过等于失败（要求三项都真的跑起来）
+        type: boolean
+        default: false
+    outputs:
+      result:
+        description: pass / fail
+        value: ${{ jobs.gate.outputs.result }}
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      result: ${{ steps.gate.outputs.result }}
+    steps:
+      - name: 取出被检查的仓库
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 取出 ActorMap
+        uses: actions/checkout@v4
+        with:
+          repository: eust-w/actor-map
+          ref: main
+          path: .actormap-tool
+
+      - name: 跑门禁
+        id: gate
+        env:
+          IR: ${{ inputs.ir }}
+          REPO: ${{ inputs.repo }}
+          ADAPTER: ${{ inputs.adapter }}
+          STRICT: ${{ inputs.strict }}
+        run: |
+          args=(gate --ir "$IR" --repo "$REPO")
+          if [ -n "$ADAPTER" ]; then args+=(--adapter "$ADAPTER"); fi
+          if [ "$STRICT" = "true" ]; then args+=(--strict); fi
+          if node .actormap-tool/src/cli.ts "${args[@]}"; then
+            echo "result=pass" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi

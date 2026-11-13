@@ -61,7 +61,7 @@ AI：落了两条：
 最后那一问不是 AI 聪明，是校验器算出来的：两条区间的并集没覆盖 `(3000, 5000]`。
 **缺口不是失败，缺口就是下一次对话的议程。**
 
-## 八个工具
+## 九个工具
 
 模型改不了 IR 文件，只能走工具 —— 格式错误在类型边界就被挡住，幻觉没有落库的路径。
 
@@ -75,6 +75,7 @@ AI：落了两条：
 | `ir_drift` | 代码和 IR 双向比对：偷偷加的需求 / 没实现的需求 |
 | `ir_export` | 导出 tools.json + openapi.yaml + acceptance.md + runner.mjs |
 | `ir_conformance` | 把真实实现接进参考状态机跑契约测试 |
+| `ir_gate` | 三项检查一次跑完，给 PR 一个裁决 |
 
 ## 校验器会抓什么
 
@@ -146,10 +147,70 @@ actormap render --out .actormap/map.html
 actormap scan <repo> [--seed] [--force]
 actormap drift <repo>                      # 代码多了没确认的迁移 → 退出码 1
 actormap conformance --adapter ./a.mjs     # 契约测试，有失败 → 退出码 1
+actormap gate [--repo .] [--adapter …]     # 三项合一的门禁，默认扫当前目录
+actormap gate --no-repo --strict           # 只要 validate + conformance，跳过即失败
 actormap export --out .actormap/export
 actormap change --reason "…" --file changes.json
 actormap history
 ```
+
+## PR 门禁：三项检查，一个裁决
+
+```bash
+actormap gate --repo . --adapter .actormap/adapter.mjs
+```
+
+```
+门禁通过 · 报销系统 v7
+
+✔ 需求自洽：8 条断言 · 0 错误 · 2 待确认
+✔ 实现与需求一致：对上 5 条 · 代码多出 0 条 · 未实现 3 条
+✔ 契约测试：12/12 通过
+```
+
+| 检查 | 拦什么 |
+| --- | --- |
+| **需求自洽** | IR 自己有错误（行为不确定、走不到终态、分支重叠…） |
+| **实现与需求一致** | 代码里有、IR 没确认过的迁移（偷偷加的需求），双向比对 |
+| **契约测试** | 实现违反断言（阈值、权限、拒绝后状态被改脏） |
+
+三种结果分开：`✔ 通过` / `✖ 拦下` / `– 跳过`。**跳过不等于通过** —— 没给仓库就明说没查，
+加 `--strict` 则要求三项都真的跑起来。
+
+### 一个第二天就被关掉的门禁等于没有门禁
+
+所以留了两个口子，`.actormap/gate.json`：
+
+```json
+{
+  "allowDrift": [
+    { "from": "submitted", "action": "cancel", "to": "cancelled",
+      "reason": "PR #42 先上，下个迭代补 IR" }
+  ],
+  "warnOnly": ["conformance"]
+}
+```
+
+- `allowDrift`：已知的、暂时接受的漂移。**必须写 reason**，报告里会显示「已豁免 1」。
+- `warnOnly`：某项先降级成警告，观察两周再接成硬门禁。
+
+### 挂到别人的仓库上
+
+这是一个可复用工作流：
+
+```yaml
+# 在你自己仓库的 .github/workflows/ci.yml 里
+jobs:
+  spec-gate:
+    uses: eust-w/actor-map/.github/workflows/gate-reusable.yml@main
+    with:
+      ir: .actormap/ir.json
+      repo: .
+      adapter: .actormap/adapter.mjs
+      strict: false
+```
+
+在 GitHub Actions 里跑时，摘要会自动写进 `$GITHUB_STEP_SUMMARY`，PR 页面直接能看到哪条断言被破了。
 
 ## 契约测试：把真实实现接进来
 
@@ -276,9 +337,10 @@ src/scan/scanner.ts      仓库扫描：实体/状态/迁移/角色，只收有�
 src/scan/drift.ts        代码 ↔ IR 双向漂移
 src/conformance/cases.ts 从断言推导正例/条件反例/角色反例（边界值）
 src/conformance/harness.ts 接适配器执行，用 runner.mjs 当裁判
+src/gate/index.ts        三项检查合一 + 豁免/降级 + Markdown 摘要
 src/report/checklist.ts  ✔/⚠ 断言清单
 src/report/html.ts       单文件 HTML 地图
-src/extension/handlers.ts 八个工具的实际逻辑（可单测）
+src/extension/handlers.ts 九个工具的实际逻辑（可单测）
 src/extension/index.ts   pi 绑定层，只声明 schema
 ```
 
@@ -294,6 +356,7 @@ src/extension/index.ts   pi 绑定层，只声明 schema
 ## 还没做的
 
 - 跨角色的说法前后不一致检测（同一个 PM 换个帽子说了相反的话）
+- PR 内联评论（现在只写 step summary，还没逐行 annotate 到 diff）
 - 多实体流程（当前一条断言只能挂一个 entity，跨对象的事务没有建模）
 - 一次调用改多个状态的场景（现在假设一条动作只改一个实体）
 - drift 接入 PR 门禁（`.github/workflows/speccheck.yml` 已经跑了测试和校验，
