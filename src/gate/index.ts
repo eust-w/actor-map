@@ -26,6 +26,9 @@ export interface GateItem {
 	level: "error" | "warning";
 	file?: string;
 	line?: number;
+	/** 完整语句块的范围；有它才能生成可 Apply 的 suggestion */
+	startLine?: number;
+	endLine?: number;
 	title: string;
 	message: string;
 	/** 稳定标记，用于 PR 评论去重 */
@@ -92,9 +95,15 @@ export function defaultAdapter(cwd: string): string | undefined {
 	return existsSync(candidate) ? candidate : undefined;
 }
 
-/** 从扫描写进 source 的证据串里取回 file:line */
-export function parseEvidence(source: string): { file: string; line: number } | undefined {
-	const m = source.match(/(?:代码：)?([^\s:][^:]*?):(\d+)\s*$/);
+/**
+ * 取回代码位置。优先用扫描器写下的结构化 evidence；
+ * 老 IR 只有 `source: "代码：file:line"` 字符串，退回解析。
+ */
+export function parseEvidence(input: { source: string; evidence?: { file: string; line: number; startLine?: number; endLine?: number } }):
+	| { file: string; line: number; startLine?: number; endLine?: number }
+	| undefined {
+	if (input.evidence?.file) return input.evidence;
+	const m = input.source.match(/(?:代码：)?([^\s:][^:]*?):(\d+)\s*$/);
 	if (!m) return undefined;
 	return { file: m[1].replace(/^代码：/, ""), line: Number(m[2]) };
 }
@@ -181,12 +190,14 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 		});
 		const items: GateItem[] = unwaived.map((item) => {
 			const a = item.assertion;
-			const where = parseEvidence(a.source);
+			const where = parseEvidence(a);
 			return {
 				kind: "drift-extra",
 				level: "error",
 				file: where ? (prefix ? `${prefix}/${where.file}` : where.file) : undefined,
 				line: where?.line,
+				startLine: where?.startLine,
+				endLine: where?.endLine,
 				title: `需求里没有这条迁移：${a.from} --${a.action}--> ${a.to}`,
 				message: `${item.reason}\n\nIR 里没有确认过这条。要么补进 IR（\`ir_change\`，写清 reason），要么删掉这段代码。`,
 				marker: `drift:${a.from}|${a.action}|${a.to}`,

@@ -52,6 +52,8 @@ export interface Assertion {
 	verify: string;
 	/** 访谈对象的原话片段 —— 防幻觉的锚点 */
 	source: string;
+	/** 扫描出来的代码位置；endLine 是完整语句块的范围，用来生成 suggestion */
+	evidence?: { file: string; line: number; startLine?: number; endLine?: number };
 	status: AssertionStatus;
 }
 

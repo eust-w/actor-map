@@ -224,7 +224,16 @@ export function scanRepo(root: string): ScanReport {
 
 	const entities = new Map<string, Evidence>();
 	const states = new Map<string, { value: string; evidence: Evidence; enumName: string }>();
-	const transitions: Array<{ from?: string; to: string; actor: string; action: string; evidence: Evidence; entity: string }> = [];
+	const transitions: Array<{
+		from?: string;
+		to: string;
+		actor: string;
+		action: string;
+		evidence: Evidence;
+		entity: string;
+		/** 这条迁移所在的完整语句块，用来生成可以一键 Apply 的 suggestion */
+		block?: { start: number; end?: number };
+	}> = [];
 	const actors = new Map<string, Evidence>();
 	const systems = new Map<string, Evidence>();
 
@@ -242,6 +251,11 @@ export function scanRepo(root: string): ScanReport {
 
 		let currentAction: string | undefined;
 		let currentRoute: { method: string; path: string } | undefined;
+		// 只在能确定「完整语句块」时才记 range：删半截代码比不删更糟
+		let block: { start: number; end?: number } | undefined;
+		let inBlock = false;
+		let depth = 0;
+		let opened = false;
 
 		for (let i = 0; i < lines.length; i += 1) {
 			const line = lines[i];
@@ -295,6 +309,10 @@ export function scanRepo(root: string): ScanReport {
 			for (const pattern of ROUTE_PATTERNS) {
 				const m = line.match(pattern.re);
 				if (m) {
+					block = { start: i };
+					inBlock = true;
+					depth = 0;
+					opened = false;
 					const path = m[pattern.name];
 					const method = pattern.method ? m[pattern.method] : "CALL";
 					currentRoute = { method: method.toUpperCase(), path };
@@ -339,6 +357,7 @@ export function scanRepo(root: string): ScanReport {
 					action,
 					evidence,
 					entity: entityGuess ?? "main",
+					block,
 				});
 				break;
 			}
@@ -359,6 +378,23 @@ export function scanRepo(root: string): ScanReport {
 						}
 					}
 					m = pattern.exec(line);
+				}
+			}
+
+			// 维护当前语句块的括号深度，闭合时记下结束行
+			if (inBlock) {
+				for (const ch of line) {
+					if (ch === "{") {
+						depth += 1;
+						opened = true;
+					} else if (ch === "}") {
+						depth -= 1;
+					}
+				}
+				if (opened && depth <= 0) {
+					if (block) block.end = i;
+					inBlock = false;
+					block = undefined;
 				}
 			}
 
@@ -397,6 +433,13 @@ export function scanRepo(root: string): ScanReport {
 		});
 	}
 
+	// 一个块里只有一条迁移时才给 range：否则删整块会误伤别的行为
+	const blockCount = new Map<object, number>();
+	for (const t of transitions) {
+		if (!t.block) continue;
+		blockCount.set(t.block, (blockCount.get(t.block) ?? 0) + 1);
+	}
+
 	const defaultActor = skeleton.actors[0]?.id ?? "app_user";
 	const seen = new Set<string>();
 	let used = 0;
@@ -418,6 +461,13 @@ export function scanRepo(root: string): ScanReport {
 			verify: "",
 			source: `代码：${t.evidence.file}:${t.evidence.line}`,
 			status: t.from ? "confirmed" : "assumed",
+			evidence: {
+				file: t.evidence.file,
+				line: t.evidence.line,
+				...(t.block?.end !== undefined && blockCount.get(t.block) === 1
+					? { startLine: t.block.start + 1, endLine: t.block.end + 1 }
+					: {}),
+			},
 		};
 		skeleton.assertions.push(assertion);
 		used += 1;

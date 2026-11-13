@@ -39,6 +39,8 @@ function report(overrides: Partial<GateReport> = {}): GateReport {
 						level: "error",
 						file: "src/order.ts",
 						line: 12,
+						startLine: 10,
+						endLine: 12,
 						title: "需求里没有这条迁移：submitted --cancel--> cancelled",
 						message: "IR 里没有确认过",
 						marker: "drift:submitted|cancel|cancelled",
@@ -160,4 +162,41 @@ test("路径前缀对不上时用后缀匹配兜底", () => {
 	);
 	assert.equal(payload.comments.length, 1);
 	assert.equal(payload.comments[0].path, "examples/app/src/order.ts");
+});
+
+test("块范围完整落在 diff 里时出 suggestion，可一键 Apply", () => {
+	const payload = buildReviewPayload(
+		report(),
+		collectAnnotations(report()),
+		new Map([["src/order.ts", new Set([10, 11, 12])]]),
+	);
+	const comment = payload.comments[0];
+	assert.equal(comment.start_line, 10);
+	assert.equal(comment.line, 12);
+	assert.equal(comment.start_side, "RIGHT");
+	assert.match(comment.body, /```suggestion\n```/);
+});
+
+test("块范围被 diff 截断时不出 suggestion，避免删出语法破损", () => {
+	const payload = buildReviewPayload(
+		report(),
+		collectAnnotations(report()),
+		new Map([["src/order.ts", new Set([12])]]),
+	);
+	const comment = payload.comments[0];
+	assert.equal(comment.start_line, undefined);
+	assert.equal(comment.line, 12);
+	assert.doesNotMatch(comment.body, /suggestion/);
+});
+
+test("没有块范围时退化成普通评论", () => {
+	const payload = buildReviewPayload(
+		report(),
+		collectAnnotations(report()),
+		new Map([["src/old.ts", new Set([99])]]),
+	);
+	const old = payload.comments.find((c) => c.path === "src/old.ts");
+	assert.ok(old);
+	assert.equal(old.start_line, undefined);
+	assert.doesNotMatch(old.body, /suggestion/);
 });

@@ -15,6 +15,9 @@ export interface Annotation {
 	level: "error" | "warning" | "notice";
 	file?: string;
 	line?: number;
+	/** 可以一键替换的行范围（含两端），有它才出 suggestion 块 */
+	startLine?: number;
+	endLine?: number;
 	title: string;
 	message: string;
 	marker: string;
@@ -23,7 +26,9 @@ export interface Annotation {
 export interface ReviewComment {
 	path: string;
 	line: number;
+	start_line?: number;
 	side: "RIGHT";
+	start_side?: "RIGHT";
 	body: string;
 }
 
@@ -46,6 +51,8 @@ export function collectAnnotations(report: GateReport): Annotation[] {
 				level: item.level,
 				file: item.file,
 				line: item.line,
+				startLine: item.startLine,
+				endLine: item.endLine,
 				title: `[${check.title}] ${item.title}`,
 				message: item.message,
 				marker: item.marker,
@@ -157,14 +164,29 @@ export function additionsByFile(files: PrFile[]): Map<string, Set<number>> {
 
 // ── Review 载荷 ─────────────────────────────────────────────────────────
 
-function commentBody(annotation: Annotation): string {
-	return [
-		`**${annotation.title}**`,
-		"",
-		annotation.message,
-		"",
-		`<!-- actormap:${annotation.marker} -->`,
-	].join("\n");
+/**
+ * 评论正文。带 suggestion 块时，GitHub 会渲染出「Apply suggestion」按钮。
+ * 空内容的 suggestion 就是「删掉这几行」——所以只在范围是整个语句块时才给。
+ */
+function commentBody(annotation: Annotation, withSuggestion: boolean): string {
+	const parts = [`**${annotation.title}**`, "", annotation.message];
+	if (withSuggestion) {
+		parts.push("", "```suggestion", "```", "");
+	}
+	parts.push(`<!-- actormap:${annotation.marker} -->`);
+	return parts.join("\n");
+}
+
+function suggestionRange(annotation: Annotation, lines: Set<number>): { start: number; end: number } | undefined {
+	const end = annotation.endLine;
+	const start = annotation.startLine;
+	if (typeof start !== "number" || typeof end !== "number") return undefined;
+	if (end <= start) return undefined;
+	// GitHub 要求整个范围都在 diff 里，否则整条评论会被 422 拒掉
+	for (let line = start; line <= end; line += 1) {
+		if (!lines.has(line)) return undefined;
+	}
+	return { start, end };
 }
 
 function table(report: GateReport): string {
@@ -216,11 +238,13 @@ export function buildReviewPayload(
 			skipped.push({ annotation, reason: `第 ${annotation.line ?? "?"} 行不在本次新增里` });
 			continue;
 		}
+		const range = suggestionRange(annotation, lines);
 		comments.push({
 			path: match,
-			line: annotation.line,
+			line: range ? range.end : (annotation.line as number),
+			...(range ? { start_line: range.start, start_side: "RIGHT" as const } : {}),
 			side: "RIGHT",
-			body: commentBody(annotation),
+			body: commentBody(annotation, Boolean(range)),
 		});
 	}
 
