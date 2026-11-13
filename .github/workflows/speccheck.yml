@@ -94,3 +94,39 @@ jobs:
           ./node_modules/.bin/actormap --version
           ./node_modules/.bin/actormap validate --ir node_modules/actor-map/examples/expense/ir.json
 
+  action-selftest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: action 自检 · 正确实现应当通过
+        id: ok
+        uses: ./
+        with:
+          ir: examples/expense/ir.json
+          repo: examples/expense/service
+          adapter: examples/expense/adapters/expense-service.mjs
+          strict: "true"
+          comment: "false"
+
+      - name: action 自检 · 代码多一条迁移应当失败
+        id: bad
+        continue-on-error: true
+        uses: ./
+        with:
+          ir: examples/expense/ir.json
+          repo: examples/expense/service-drifted
+          comment: "false"
+
+      - name: 断言两种结果
+        run: |
+          if [ "${{ steps.ok.outputs.result }}" != "pass" ]; then
+            echo "正确实现应当返回 pass，实际：${{ steps.ok.outputs.result }}"; exit 1
+          fi
+          if [ "${{ steps.bad.outcome }}" != "failure" ]; then
+            echo "代码多一条迁移时 action 应当失败，实际：${{ steps.bad.outcome }}"; exit 1
+          fi
+          echo "action 自检通过"
+
