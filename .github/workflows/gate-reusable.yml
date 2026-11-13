@@ -1,17 +1,16 @@
 name: actormap-gate
 
-# 可复用工作流：任何仓库这样用
+# 可复用工作流：想一次挂完整的 job 就用这个；只想加一个 step 就直接用 action。
 #
 #   jobs:
 #     spec-gate:
-#       uses: eust-w/actor-map/.github/workflows/gate-reusable.yml@main
+#       uses: eust-w/actor-map/.github/workflows/gate-reusable.yml@v0.7.0
 #       with:
 #         ir: .actormap/ir.json
 #         repo: .
 #         adapter: .actormap/adapter.mjs
-#         strict: false
 #
-# PR 上会贴行内评论（需要 pull-requests: write），push 上只做检查。
+# 升级：把下面的 @vX.Y.Z 和这里一起改。
 
 on:
   workflow_call:
@@ -21,7 +20,7 @@ on:
         type: string
         default: .actormap/ir.json
       repo:
-        description: 要扫描的实现代码目录
+        description: 要扫描的实现代码目录；传空字符串则跳过 drift
         type: string
         default: .
       adapter:
@@ -29,7 +28,7 @@ on:
         type: string
         default: ""
       strict:
-        description: 跳过等于失败（要求三项都真的跑起来）
+        description: 被跳过的检查也算失败
         type: boolean
         default: false
       comment:
@@ -48,42 +47,14 @@ jobs:
       contents: read
       pull-requests: write
     outputs:
-      result: ${{ steps.gate.outputs.result }}
+      result: ${{ steps.actormap.outputs.result }}
     steps:
-      - name: 取出被检查的仓库
-        uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - id: actormap
+        uses: eust-w/actor-map@v0.7.0
         with:
-          node-version: '22'
-
-      - name: 取出 ActorMap
-        uses: actions/checkout@v4
-        with:
-          repository: eust-w/actor-map
-          ref: main
-          path: .actormap-tool
-
-      - name: 跑门禁
-        id: gate
-        env:
-          IR: ${{ inputs.ir }}
-          REPO: ${{ inputs.repo }}
-          ADAPTER: ${{ inputs.adapter }}
-          STRICT: ${{ inputs.strict }}
-          COMMENT: ${{ inputs.comment }}
-          EVENT_NAME: ${{ github.event_name }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          args=(gate --ir "$IR" --repo "$REPO")
-          if [ -n "$ADAPTER" ]; then args+=(--adapter "$ADAPTER"); fi
-          if [ "$STRICT" = "true" ]; then args+=(--strict); fi
-          if [ "$COMMENT" = "true" ] && [ "$EVENT_NAME" = "pull_request" ]; then
-            args+=(--github)
-          fi
-          if node .actormap-tool/src/cli.ts "${args[@]}"; then
-            echo "result=pass" >> "$GITHUB_OUTPUT"
-          else
-            echo "result=fail" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
+          ir: ${{ inputs.ir }}
+          repo: ${{ inputs.repo }}
+          adapter: ${{ inputs.adapter }}
+          strict: ${{ inputs.strict }}
+          comment: ${{ inputs.comment }}
