@@ -1,0 +1,154 @@
+{
+  "product": "报销系统",
+  "version": 7,
+  "tools": [
+    {
+      "name": "order_create",
+      "description": "employee 在 ∅ 状态下执行 create，结果是 draft。 验收：单据出现在「我的报销」列表。",
+      "assertion": "a_001",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "对象 id"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "order_submit",
+      "description": "employee 在 draft 状态下执行 submit，结果是 submitted。 前置条件：金额 > 0 && 已上传发票。 验收：单据出现在主管待办。",
+      "assertion": "a_002",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "对象 id"
+          },
+          "金额": {
+            "type": "number",
+            "description": "来自条件：金额 > 0"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "order_approve",
+      "description": "manager 在 submitted 状态下执行 approve，结果是 approved。 前置条件：金额 <= 5000。 验收：状态变为已通过。",
+      "assertion": "a_003",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "对象 id"
+          },
+          "金额": {
+            "type": "number",
+            "description": "来自条件：金额 <= 5000"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "order_escalate",
+      "description": "manager 在 submitted 状态下执行 escalate，结果是 pending_finance。 前置条件：金额 > 5000。 验收：单据进入财务复核队列。",
+      "assertion": "a_004",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "对象 id"
+          },
+          "金额": {
+            "type": "number",
+            "description": "来自条件：金额 > 5000"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "order_reject",
+      "description": "manager 在 submitted 状态下执行 reject，结果是 draft。 前置条件：发票不合规。 验收：回到员工草稿，金额不可改。",
+      "assertion": "a_005",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "对象 id"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "order_pay",
+      "description": "finance 在 approved 状态下执行 pay，结果是 paid。 验收：生成打款回执。",
+      "assertion": "a_006",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "对象 id"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "order_confirm",
+      "description": "finance 在 pending_finance 状态下执行 confirm，结果是 approved。 验收：进入待打款。",
+      "assertion": "a_007",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "对象 id"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "order_auto_close",
+      "description": "sweeper 在 submitted 状态下执行 auto_close，结果是 closed。 前置条件：now - submitted_at > 30d。 验收：状态变为已关闭，双方各收一条通知。",
+      "assertion": "a_008",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "对象 id"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    }
+  ]
+}

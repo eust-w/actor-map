@@ -159,6 +159,17 @@ actormap export
 .actormap/export/tools.json       agent 的工具表，条件里的变量直接变成参数
 .actormap/export/openapi.yaml     每个动作一个 path
 .actormap/export/acceptance.md    QA 的验收用例，含每条条件的反例
+.actormap/export/runner.mjs       参考状态机，给 coding agent 当尺子用
+```
+
+`runner.mjs` 能直接跑：
+
+```js
+import { apply, create, unchecked } from "./.actormap/export/runner.mjs";
+apply("submitted", "approve", { 金额: 4000 }, "manager"); // { allowed: true, to: "approved" }
+apply("submitted", "approve", { 金额: 9000 }, "manager"); // { allowed: false, reason: "guard-rejected" }
+create("order", "employee");                              // "draft"
+unchecked;                                                // 解析不了的条件（时间表达式等），必须人看
 ```
 
 三者都是同一个状态机的投影，所以永远不会互相漂移 —— 需求改一次，三份一起变。
@@ -214,8 +225,10 @@ src/extension/index.ts   pi 绑定层，只声明 schema
 ## 还没做的
 
 - 跨角色的说法前后不一致检测（同一个 PM 换个帽子说了相反的话）
-- 真正可执行的契约测试（现在导出的是验收表和反例清单，还不是能跑的测试代码）
-- 接入 CI 的 PR 门禁（`drift` 已经能返回非零退出码，缺一个 GitHub Action）
+- 真正跑在业务代码上的契约测试（现在给的是验收表、反例清单和参考状态机，
+  还缺「把业务实现接进参考状态机对比」的那一层）
+- drift 接入 PR 门禁（`.github/workflows/speccheck.yml` 已经跑了测试和校验，
+  还没在真实仓库上挂 drift）
 - 图形化编辑（当前是终端对话 + 生成的自包含 HTML 地图）
 
 ## 许可证

@@ -1,10 +1,11 @@
 /**
  * 从 IR 导出「能被别人接手的东西」。
  *
- * 三份产物，一个来源：
+ * 四份产物，一个来源：
  *   tools.json    → 给 agent 用（同一张图，不同消费者）
  *   openapi.yaml  → 给后端用
  *   acceptance.md → 给 QA 用
+ *   runner.mjs    → 给 coding agent 的参考尺子
  *
  * 它们不是三份文档，是同一个状态机的三个投影。所以永远不会互相漂移。
  */
@@ -12,6 +13,7 @@
 import type { Assertion, IRFile } from "../ir/types.ts";
 import { EMPTY_STATE } from "../ir/types.ts";
 import { parseGuard } from "../validate/guards.ts";
+import { exportRunner } from "./runner.ts";
 
 function slug(text: string): string {
 	return (
@@ -164,5 +166,6 @@ export function exportAll(ir: IRFile): Record<string, string> {
 		"tools.json": exportTools(ir),
 		"openapi.yaml": exportOpenAPI(ir),
 		"acceptance.md": exportAcceptance(ir),
+		"runner.mjs": exportRunner(ir),
 	};
 }

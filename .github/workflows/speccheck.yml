@@ -1,0 +1,32 @@
+name: spec-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 单元测试（零依赖）
+        run: npm test
+      - name: 校验示例 IR
+        run: node src/cli.ts validate --ir examples/expense/ir.json
+      - name: 导出四份投影
+        run: node src/cli.ts export --ir examples/expense/ir.json --out /tmp/export
+      - name: 参考状态机自检
+        run: |
+          node -e "
+          import('/tmp/export/runner.mjs').then((m) => {
+            const ok = m.apply('submitted','approve',{金额:4000},'manager');
+            const bad = m.apply('submitted','approve',{金额:9000},'manager');
+            if (!ok.allowed || ok.to !== 'approved') throw new Error('approve 该通过却没通过');
+            if (bad.allowed) throw new Error('超额的 approve 居然通过了');
+            console.log('runner ok');
+          });
+          "

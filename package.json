@@ -1,6 +1,6 @@
 {
   "name": "actor-map",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "通过对话把需求聊定：把产品的角色可操作地图聊成一份带 ✔/⚠ 的断言清单",
   "type": "module",
   "license": "MIT",

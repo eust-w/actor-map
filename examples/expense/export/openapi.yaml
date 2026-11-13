@@ -1,0 +1,126 @@
+openapi: 3.0.3
+info:
+  title: "报销系统"
+  version: "7"
+  description: "由 ActorMap 从断言清单生成；每个动作 = 一条状态迁移"
+paths:
+  /orders/{id}/approve:
+    post:
+      operationId: order_approve
+      summary: "submitted→approved（manager）"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                "金额": { type: number }
+      responses:
+        "200":
+          description: "状态变为 approved；状态变为已通过"
+  /orders/{id}/auto_close:
+    post:
+      operationId: order_auto_close
+      summary: "submitted→closed（sweeper）"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                {}
+      responses:
+        "200":
+          description: "状态变为 closed；状态变为已关闭，双方各收一条通知"
+  /orders/{id}/confirm:
+    post:
+      operationId: order_confirm
+      summary: "pending_finance→approved（finance）"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                {}
+      responses:
+        "200":
+          description: "状态变为 approved；进入待打款"
+  /orders/{id}/create:
+    post:
+      operationId: order_create
+      summary: "∅→draft（employee）"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                {}
+      responses:
+        "200":
+          description: "状态变为 draft；单据出现在「我的报销」列表"
+  /orders/{id}/escalate:
+    post:
+      operationId: order_escalate
+      summary: "submitted→pending_finance（manager）"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                "金额": { type: number }
+      responses:
+        "200":
+          description: "状态变为 pending_finance；单据进入财务复核队列"
+  /orders/{id}/pay:
+    post:
+      operationId: order_pay
+      summary: "approved→paid（finance）"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                {}
+      responses:
+        "200":
+          description: "状态变为 paid；生成打款回执"
+  /orders/{id}/reject:
+    post:
+      operationId: order_reject
+      summary: "submitted→draft（manager）"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                {}
+      responses:
+        "200":
+          description: "状态变为 draft；回到员工草稿，金额不可改"
+  /orders/{id}/submit:
+    post:
+      operationId: order_submit
+      summary: "draft→submitted（employee）"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                "金额": { type: number }
+      responses:
+        "200":
+          description: "状态变为 submitted；单据出现在主管待办"

@@ -142,7 +142,7 @@ switch (command) {
 		for (const [name, content] of Object.entries(files)) {
 			written.push(writeOut(joinSafe(outDir, name), content));
 		}
-		console.log(`已导出 ${written.length} 份（同一个状态机的三个投影）：`);
+		console.log(`已导出 ${written.length} 份（同一个状态机的多个投影）：`);
 		for (const path of written) console.log(`  ${path}`);
 		break;
 	}

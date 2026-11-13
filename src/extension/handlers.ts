@@ -186,7 +186,7 @@ export function exportTool(params: ExportParams, cwd: string): HandlerResult {
 		written.push(target);
 	}
 	return {
-		text: `已导出（同一个状态机的三个投影）：\n${written.map((p) => `  · ${p}`).join("\n")}`,
+		text: `已导出（同一个状态机的多个投影）：\n${written.map((p) => `  · ${p}`).join("\n")}`,
 		details: { written },
 	};
 }
