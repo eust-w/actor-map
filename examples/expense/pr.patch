@@ -1,0 +1,20 @@
+diff --git a/examples/expense/service-drifted/order.controller.ts b/examples/expense/service-drifted/order.controller.ts
+index 2cac589..cdff3d0 100644
+--- a/examples/expense/service-drifted/order.controller.ts
++++ b/examples/expense/service-drifted/order.controller.ts
+@@ -49,3 +49,15 @@ router.post("/orders/:id/pay", async (req, res) => {
+   }
+   res.ok(order);
+ });
++
++/**
++ * 这一条在 IR 里没有 —— drift 应该把它抓出来，门禁失败。
++ */
++router.post("/orders/:id/cancel", async (req, res) => {
++  const order = await orders.find(req.params.id);
++  if (order.status === "submitted" && req.user.role === "employee") {
++    order.status = "cancelled";
++    await order.save();
++  }
++  res.ok(order);
++});

@@ -65,6 +65,8 @@
    - 代码里多的迁移 → 问「这是新需求，还是写错了？」新需求就走 `ir_change` 补 IR 并写 reason。
    - 不要为了让门禁变绿去放宽门禁，除非用户明确要求，并且要写进 `.actormap/gate.json` 的 reason。
 5. conformance 拦下时，先看是不是 IR 本身写错了（用 `ir_validate` 复核），再决定改实现还是改需求。
+6. 用户问「PR 上能不能直接看到」时，告诉他门禁会在 diff 的新增行上贴行内评论，
+   落在 diff 之外的发现会降级进 review 正文；本地想预览就 `gate --dry-run --diff pr.patch`。
 
 ## 改需求：先定位，再改动，再复述影响
 

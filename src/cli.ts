@@ -18,6 +18,8 @@ import { formatScanReport, scanRepo } from "./scan/scanner.ts";
 import { formatDrift, scanAndDrift } from "./scan/drift.ts";
 import { runConformance } from "./conformance/harness.ts";
 import { formatGate, gateMarkdown, loadWaivers, runGate } from "./gate/index.ts";
+import { additionsByFile, buildReviewPayload, collectAnnotations, parseUnifiedDiff, workflowCommands } from "./gate/annotate.ts";
+import { fetchPrFiles, listExisting, postReview, resolveContext } from "./gate/github.ts";
 import { formatConformance, summarize } from "./conformance/report.ts";
 
 const argv = process.argv.slice(2);
@@ -169,14 +171,50 @@ switch (command) {
 			waivers: loadWaivers(process.cwd()),
 		});
 		const markdown = gateMarkdown(report);
+		const annotations = collectAnnotations(report);
+
 		if (has("json")) console.log(JSON.stringify(report, null, 2));
 		else if (!has("quiet")) console.log(formatGate(report));
 
+		// 行内标注：Actions 里自动开；本地可用 --annotate 预览
+		if (has("annotate") || (process.env.GITHUB_ACTIONS && !has("no-annotate"))) {
+			for (const line of workflowCommands(annotations)) console.log(line);
+		}
+
 		const mdOut = flag("md-out");
 		if (mdOut) console.log(`摘要写入 ${writeOut(mdOut, markdown)}`);
-		// GitHub Actions 里自动出 step summary
 		const stepSummary = process.env.GITHUB_STEP_SUMMARY;
 		if (stepSummary) appendFileSync(stepSummary, `${markdown}\n`, "utf8");
+
+		const diffFile = flag("diff");
+		if (has("github") || has("dry-run")) {
+			if (diffFile) {
+				const additions = parseUnifiedDiff(readFileSync(resolve(process.cwd(), diffFile), "utf8"));
+				const payload = buildReviewPayload(report, annotations, additions);
+				console.log(JSON.stringify(payload, null, 2));
+				process.exitCode = report.ok ? 0 : 1;
+				break;
+			}
+			const resolved = resolveContext({ pr: flag("pr") ? Number(flag("pr")) : undefined });
+			if (!resolved.ok) {
+				console.error(`无法贴 PR 评论：${resolved.reason}`);
+				process.exitCode = 2;
+				break;
+			}
+			const files = await fetchPrFiles(resolved.target);
+			const payload = buildReviewPayload(report, annotations, additionsByFile(files));
+			if (has("dry-run")) {
+				console.log(JSON.stringify(payload, null, 2));
+			} else {
+				const existing = await listExisting(resolved.target);
+				const result = await postReview(resolved.target, payload, existing);
+				console.log(
+					result.posted
+						? `已贴到 PR #${resolved.target.pr}：${result.comments} 条行内备注 ${result.url ?? ""}`
+						: `跳过贴评论：${result.reason}`,
+				);
+			}
+		}
 
 		const strict = has("strict");
 		const skipped = report.checks.filter((c) => c.status === "skip").length;

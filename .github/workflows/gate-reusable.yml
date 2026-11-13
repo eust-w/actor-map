@@ -10,6 +10,8 @@ name: actormap-gate
 #         repo: .
 #         adapter: .actormap/adapter.mjs
 #         strict: false
+#
+# PR 上会贴行内评论（需要 pull-requests: write），push 上只做检查。
 
 on:
   workflow_call:
@@ -30,6 +32,10 @@ on:
         description: 跳过等于失败（要求三项都真的跑起来）
         type: boolean
         default: false
+      comment:
+        description: 是否在 PR diff 上贴行内评论
+        type: boolean
+        default: true
     outputs:
       result:
         description: pass / fail
@@ -38,6 +44,9 @@ on:
 jobs:
   gate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     outputs:
       result: ${{ steps.gate.outputs.result }}
     steps:
@@ -62,10 +71,16 @@ jobs:
           REPO: ${{ inputs.repo }}
           ADAPTER: ${{ inputs.adapter }}
           STRICT: ${{ inputs.strict }}
+          COMMENT: ${{ inputs.comment }}
+          EVENT_NAME: ${{ github.event_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           args=(gate --ir "$IR" --repo "$REPO")
           if [ -n "$ADAPTER" ]; then args+=(--adapter "$ADAPTER"); fi
           if [ "$STRICT" = "true" ]; then args+=(--strict); fi
+          if [ "$COMMENT" = "true" ] && [ "$EVENT_NAME" = "pull_request" ]; then
+            args+=(--github)
+          fi
           if node .actormap-tool/src/cli.ts "${args[@]}"; then
             echo "result=pass" >> "$GITHUB_OUTPUT"
           else

@@ -194,6 +194,34 @@ actormap gate --repo . --adapter .actormap/adapter.mjs
 - `allowDrift`：已知的、暂时接受的漂移。**必须写 reason**，报告里会显示「已豁免 1」。
 - `warnOnly`：某项先降级成警告，观察两周再接成硬门禁。
 
+### 行内评论：贴在 diff 的具体某一行
+
+门禁的每条发现都带 `file:line`，PR 上直接标在代码行上：
+
+```
+✖ 需求里没有这条迁移：submitted --cancel--> cancelled
+   IR 里没有确认过这条。要么补进 IR（ir_change，写清 reason），要么删掉这段代码。
+   <!-- actormap:drift:submitted|cancel|cancelled -->
+```
+
+两个通道都实现了，因为成本完全不同：
+
+| 通道 | 需要什么 | 效果 |
+| --- | --- | --- |
+| Workflow commands `::error file=…,line=…` | 零权限 | Actions 里自动出现在 diff 上 |
+| PR review comments | `pull-requests: write` | 能带解释、能被讨论、能 resolve |
+
+三条规则：
+
+1. **只标本次新增的行。** 注释在别人的上下文行上会让 review 变吵，所以先拿 PR 的 patch 算出新增行号，落不进去的不丢——降级写进 review 正文的折叠块里。
+2. **去重靠标记。** 每条评论带 `<!-- actormap:<marker> -->`，重跑时已有的跳过；结论完全没变就一条都不发。
+3. **能先离线看。** 不联网预览会贴在哪几行：
+
+```bash
+git diff --no-index old/ new/ > pr.patch
+actormap gate --dry-run --diff pr.patch --quiet | jq '.comments'
+```
+
 ### 挂到别人的仓库上
 
 这是一个可复用工作流：
@@ -338,6 +366,8 @@ src/scan/drift.ts        代码 ↔ IR 双向漂移
 src/conformance/cases.ts 从断言推导正例/条件反例/角色反例（边界值）
 src/conformance/harness.ts 接适配器执行，用 runner.mjs 当裁判
 src/gate/index.ts        三项检查合一 + 豁免/降级 + Markdown 摘要
+src/gate/annotate.ts     发现 → 行内标注：diff 过滤、工作流命令、review 载荷
+src/gate/github.ts       PR files / comments / reviews（只依赖 fetch，可注入）
 src/report/checklist.ts  ✔/⚠ 断言清单
 src/report/html.ts       单文件 HTML 地图
 src/extension/handlers.ts 九个工具的实际逻辑（可单测）
@@ -356,7 +386,7 @@ src/extension/index.ts   pi 绑定层，只声明 schema
 ## 还没做的
 
 - 跨角色的说法前后不一致检测（同一个 PM 换个帽子说了相反的话）
-- PR 内联评论（现在只写 step summary，还没逐行 annotate 到 diff）
+- Diff 里的 suggestion（现在只评论，还不能一键 Apply suggestion）
 - 多实体流程（当前一条断言只能挂一个 entity，跨对象的事务没有建模）
 - 一次调用改多个状态的场景（现在假设一条动作只改一个实体）
 - drift 接入 PR 门禁（`.github/workflows/speccheck.yml` 已经跑了测试和校验，

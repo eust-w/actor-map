@@ -11,7 +11,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import type { IRFile } from "../ir/types.ts";
 import { validate } from "../validate/validate.ts";
 import { scanAndDrift } from "../scan/drift.ts";
@@ -20,12 +20,25 @@ import { runConformance } from "../conformance/harness.ts";
 export type CheckId = "validate" | "drift" | "conformance";
 export type CheckStatus = "pass" | "fail" | "skip" | "warn";
 
+/** 一条可标注的发现：有 file:line 的才能落到 diff 上 */
+export interface GateItem {
+	kind: "drift-extra" | "drift-missing" | "validate-error" | "conformance-failure";
+	level: "error" | "warning";
+	file?: string;
+	line?: number;
+	title: string;
+	message: string;
+	/** 稳定标记，用于 PR 评论去重 */
+	marker: string;
+}
+
 export interface GateCheck {
 	id: CheckId;
 	title: string;
 	status: CheckStatus;
 	summary: string;
 	details: string[];
+	items: GateItem[];
 	blocking: boolean;
 	waived?: string[];
 }
@@ -79,6 +92,13 @@ export function defaultAdapter(cwd: string): string | undefined {
 	return existsSync(candidate) ? candidate : undefined;
 }
 
+/** 从扫描写进 source 的证据串里取回 file:line */
+export function parseEvidence(source: string): { file: string; line: number } | undefined {
+	const m = source.match(/(?:代码：)?([^\s:][^:]*?):(\d+)\s*$/);
+	if (!m) return undefined;
+	return { file: m[1].replace(/^代码：/, ""), line: Number(m[2]) };
+}
+
 function driftKey(item: { from: string; action: string; to: string }): string {
 	return `${item.from}|${item.action}|${item.to}`.toLowerCase();
 }
@@ -103,6 +123,13 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 		const result = validate(ir);
 		const errors = result.issues.filter((i) => i.severity === "error");
 		const details = errors.slice(0, 10).map((i) => `${i.code}：${i.message}\n  问：${i.question}`);
+		const items: GateItem[] = errors.map((i) => ({
+			kind: "validate-error",
+			level: "error",
+			title: i.code,
+			message: `${i.message}\n问：${i.question}`,
+			marker: `validate:${i.code}:${i.refs.join(",")}`,
+		}));
 		const raw: CheckStatus = result.stats.assertions === 0 ? "fail" : errors.length > 0 ? "fail" : "pass";
 		checks.push({
 			id: "validate",
@@ -113,12 +140,15 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 					? "IR 里没有任何断言"
 					: `${result.stats.assertions} 条断言 · ${errors.length} 错误 · ${result.stats.warnings} 待确认`,
 			details,
+			items,
 			blocking: true,
 		});
 	}
 
 	// ── 2. drift ───────────────────────────────────────────────────
 	const repo = options.repo ? resolve(options.cwd, options.repo) : undefined;
+	// 扫描结果里的路径是相对仓库根目录的，GitHub 要的是相对 PR 仓库根目录的
+	const prefix = repo ? relative(options.cwd, repo).replace(/\\/g, "/") : "";
 	if (!repo) {
 		checks.push({
 			id: "drift",
@@ -126,6 +156,7 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 			status: "skip",
 			summary: "没提供仓库路径，跳过",
 			details: ["加 --repo <路径> 才会比对代码"],
+			items: [],
 			blocking: false,
 		});
 	} else if (!existsSync(repo)) {
@@ -135,6 +166,7 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 			status: "fail",
 			summary: `仓库路径不存在：${repo}`,
 			details: [],
+			items: [],
 			blocking: true,
 		});
 	} else {
@@ -145,9 +177,22 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 			waived.push(driftKey(item.assertion));
 			return false;
 		});
-		const details = unwaived.slice(0, 10).map((item) => {
+		const items: GateItem[] = unwaived.map((item) => {
 			const a = item.assertion;
-			return `+ ${a.from} --${a.action}--> ${a.to}\n  ${item.reason}\n  证据：${a.source}`;
+			const where = parseEvidence(a.source);
+			return {
+				kind: "drift-extra",
+				level: "error",
+				file: where ? (prefix ? `${prefix}/${where.file}` : where.file) : undefined,
+				line: where?.line,
+				title: `需求里没有这条迁移：${a.from} --${a.action}--> ${a.to}`,
+				message: `${item.reason}\n\nIR 里没有确认过这条。要么补进 IR（\`ir_change\`，写清 reason），要么删掉这段代码。`,
+				marker: `drift:${a.from}|${a.action}|${a.to}`,
+			};
+		});
+		const details = items.slice(0, 10).map((item) => {
+			const head = item.file ? `${item.file}:${item.line ?? "?"}` : item.title;
+			return `+ ${item.title}\n  ${item.message.split("\n")[0]}\n  证据：${head}`;
 		});
 		if (report.onlyInIR.length > 0) {
 			details.push(
@@ -167,6 +212,7 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 				(waived.length > 0 ? `（已豁免 ${waived.length}）` : "") +
 				` · 未实现 ${report.onlyInIR.length} 条`,
 			details,
+			items,
 			blocking: raw === "fail",
 			waived,
 		});
@@ -181,6 +227,7 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 			status: "skip",
 			summary: "没提供适配器，跳过",
 			details: ["加 --adapter <路径>，或把适配器放到 .actormap/adapter.mjs"],
+			items: [],
 			blocking: false,
 		});
 	} else if (!existsSync(adapter)) {
@@ -190,6 +237,7 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 			status: "fail",
 			summary: `适配器不存在：${adapter}`,
 			details: [],
+			items: [],
 			blocking: true,
 		});
 	} else {
@@ -200,6 +248,17 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 				const c = f.case;
 				const input = Object.entries(c.ctx).map(([k, v]) => `${k}=${v}`).join(", ");
 				return `✖ ${c.assertionId} ${c.kind}：${c.from} --${c.action}--> ${c.to}（${c.by}）\n  ${f.detail ?? ""}${input ? `\n  输入：${input}` : ""}`;
+			});
+			const items: GateItem[] = failures.map((f) => {
+				const c = f.case;
+				const input = Object.entries(c.ctx).map(([k, v]) => `${k}=${v}`).join(", ");
+				return {
+					kind: "conformance-failure",
+					level: "error",
+					title: `契约破了：${c.assertionId}（${c.kind}）`,
+					message: `${c.from} --${c.action}--> ${c.to}（${c.by}）\n${f.detail ?? "不一致"}${input ? `\n输入：${input}` : ""}`,
+					marker: `conformance:${c.id}`,
+				};
 			});
 			if (report.unchecked.length > 0) {
 				details.push(`机器没判的条件（需人看）：${report.unchecked.map((u) => u.assertionId).join("、")}`);
@@ -213,6 +272,7 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 					(failures.length > 0 ? ` · ${failures.length} 失败` : "") +
 					(report.skipped > 0 ? ` · ${report.skipped} 无法执行` : ""),
 				details,
+				items,
 				blocking: raw === "fail",
 			});
 		} catch (error) {
@@ -222,6 +282,7 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 				status: statusFor("conformance", "fail", waivers),
 				summary: `适配器跑不起来：${(error as Error).message}`,
 				details: [],
+				items: [],
 				blocking: true,
 			});
 		}
