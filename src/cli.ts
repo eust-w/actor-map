@@ -176,9 +176,10 @@ switch (command) {
 		if (has("json")) console.log(JSON.stringify(report, null, 2));
 		else if (!has("quiet")) console.log(formatGate(report));
 
-		// 行内标注：Actions 里自动开；本地可用 --annotate 预览
+		// 行内标注：Actions 里自动开；本地可用 --annotate 预览。
+		// 走 stderr —— GitHub 两个流都解析工作流命令，而 stdout 要留给 --json / --dry-run 的载荷
 		if (has("annotate") || (process.env.GITHUB_ACTIONS && !has("no-annotate"))) {
-			for (const line of workflowCommands(annotations)) console.log(line);
+			for (const line of workflowCommands(annotations)) console.error(line);
 		}
 
 		const mdOut = flag("md-out");
