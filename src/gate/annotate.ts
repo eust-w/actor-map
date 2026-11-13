@@ -179,6 +179,15 @@ function table(report: GateReport): string {
 
 export const VERDICT_MARKER = "<!-- actormap:verdict -->";
 
+function resolvePath(file: string, additions: Map<string, Set<number>>): string | undefined {
+	if (additions.has(file)) return file;
+	const suffix = `/${file.replace(/^\.\//, "")}`;
+	for (const key of additions.keys()) {
+		if (key.endsWith(suffix)) return key;
+	}
+	return undefined;
+}
+
 export function buildReviewPayload(
 	report: GateReport,
 	annotations: Annotation[],
@@ -196,8 +205,10 @@ export function buildReviewPayload(
 			skipped.push({ annotation, reason: "没有 PR diff 信息" });
 			continue;
 		}
-		const lines = additions.get(annotation.file);
-		if (!lines) {
+		// 扫描结果里的路径可能相对仓库根，diff 里的路径相对 PR 根，做一次后缀匹配兜底
+		const match = resolvePath(annotation.file, additions);
+		const lines = match ? additions.get(match) : undefined;
+		if (!match || !lines) {
 			skipped.push({ annotation, reason: "这个文件不在本次改动里" });
 			continue;
 		}
@@ -206,7 +217,7 @@ export function buildReviewPayload(
 			continue;
 		}
 		comments.push({
-			path: annotation.file,
+			path: match,
 			line: annotation.line,
 			side: "RIGHT",
 			body: commentBody(annotation),

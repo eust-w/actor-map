@@ -48,15 +48,20 @@ jobs:
 
       - name: 行内标注 · 只贴在 diff 里的新增行（不联网预览）
         run: |
+          set +e
           node src/cli.ts gate \
             --ir examples/expense/ir.json \
             --repo examples/expense/service-drifted \
             --quiet --dry-run --diff examples/expense/pr.patch > /tmp/review.json
-          node -e '
-            const p = require("/tmp/review.json");
-            if (p.comments.length !== 1) { console.error("应当只有 1 条行内评论，实际 " + p.comments.length); process.exit(1); }
-            if (p.comments[0].line !== 59) { console.error("行号应当是 59"); process.exit(1); }
-            if (!p.comments[0].body.includes("actormap:drift:")) { console.error("缺少去重标记"); process.exit(1); }
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then echo "门禁应当失败（退出码 1），实际 $status"; exit 1; fi
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const p = JSON.parse(readFileSync("/tmp/review.json", "utf8"));
+            if (p.comments.length !== 1) throw new Error("应当只有 1 条行内评论，实际 " + p.comments.length);
+            if (p.comments[0].line !== 59) throw new Error("行号应当是 59，实际 " + p.comments[0].line);
+            if (!p.comments[0].body.includes("actormap:drift:")) throw new Error("缺少去重标记");
             console.log("行内标注 ok：line 59，带去重标记");
           '
 

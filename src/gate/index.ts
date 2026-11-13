@@ -148,7 +148,9 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 	// ── 2. drift ───────────────────────────────────────────────────
 	const repo = options.repo ? resolve(options.cwd, options.repo) : undefined;
 	// 扫描结果里的路径是相对仓库根目录的，GitHub 要的是相对 PR 仓库根目录的
-	const prefix = repo ? relative(options.cwd, repo).replace(/\\/g, "/") : "";
+	const rel = repo ? relative(options.cwd, repo).replace(/\\/g, "/") : "";
+	// 仓库在 cwd 之外（绝对路径）时没法算相对路径，就用扫描结果自己的路径
+	const prefix = rel && !rel.startsWith("..") ? rel : "";
 	if (!repo) {
 		checks.push({
 			id: "drift",

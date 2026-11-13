@@ -151,3 +151,13 @@ test("additionsByFile 兼容 PR files API 的形状", () => {
 	const map = additionsByFile([{ filename: "x.ts", patch: "@@ -0,0 +1,2 @@\n+a\n+b" }]);
 	assert.deepEqual([...(map.get("x.ts") ?? [])], [1, 2]);
 });
+
+test("路径前缀对不上时用后缀匹配兜底", () => {
+	const payload = buildReviewPayload(
+		report(),
+		collectAnnotations(report()),
+		new Map([["examples/app/src/order.ts", new Set([12])]]),
+	);
+	assert.equal(payload.comments.length, 1);
+	assert.equal(payload.comments[0].path, "examples/app/src/order.ts");
+});
