@@ -217,7 +217,7 @@ export interface ConformanceParams {
 	filter?: string;
 }
 
-export async function conformanceTool(params: ConformanceParams, cwd: string): HandlerResult {
+export async function conformanceTool(params: ConformanceParams, cwd: string): Promise<HandlerResult> {
 	const { ir } = load(cwd);
 	const report = await runConformance(ir, resolve(cwd, params.adapter), { filter: params.filter });
 	const summary = summarize(report);
@@ -250,7 +250,7 @@ export interface GateParams {
  * 这是「需求确认」真正变成工程约束的地方 —— 前八个工具都在生产规格，
  * 这个工具负责让规格能拦住不该合的东西。
  */
-export async function gateTool(params: GateParams, cwd: string): HandlerResult {
+export async function gateTool(params: GateParams, cwd: string): Promise<HandlerResult> {
 	const { ir } = load(cwd);
 	const report = await runGate(ir, {
 		cwd,

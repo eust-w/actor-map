@@ -1,0 +1,91 @@
+name: ActorMap Gate
+description: 用需求断言拦住 PR：需求自洽 + 实现与需求一致 + 契约测试，命中就在 diff 上贴行内评论和可一键 Apply 的修复建议
+author: eust-w
+
+branding:
+  icon: map
+  color: purple
+
+inputs:
+  ir:
+    description: IR 文件路径（相对被检查仓库根目录）
+    required: false
+    default: .actormap/ir.json
+  repo:
+    description: 要扫描的实现代码目录；传空字符串则跳过 drift
+    required: false
+    default: .
+  adapter:
+    description: 契约测试适配器路径；留空则跳过 conformance
+    required: false
+    default: ""
+  strict:
+    description: 被跳过的检查也算失败
+    required: false
+    default: "false"
+  comment:
+    description: 在 PR diff 的新增行上贴行内评论（需要 pull-requests: write）
+    required: false
+    default: "true"
+
+outputs:
+  result:
+    description: pass / fail
+    value: ${{ steps.gate.outputs.result }}
+
+runs:
+  using: composite
+  steps:
+    - name: 准备 Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+
+    - name: 跑门禁
+      id: gate
+      shell: bash
+      env:
+        ACTION_REPO: ${{ github.action_repository }}
+        ACTION_REF: ${{ github.action_ref }}
+        EVENT_NAME: ${{ github.event_name }}
+        IR: ${{ inputs.ir }}
+        REPO: ${{ inputs.repo }}
+        ADAPTER: ${{ inputs.adapter }}
+        STRICT: ${{ inputs.strict }}
+        COMMENT: ${{ inputs.comment }}
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        # 用 npx 现取自己：不往被检查的仓库里塞任何文件，drift 扫描不会被污染
+        tool="github:${ACTION_REPO}${ACTION_REF:+#${ACTION_REF}}"
+
+        args=(gate --ir "$IR")
+        [ -n "$REPO" ] && args+=(--repo "$REPO") || args+=(--no-repo)
+        [ -n "$ADAPTER" ] && args+=(--adapter "$ADAPTER")
+        [ "$STRICT" = "true" ] && args+=(--strict)
+        if [ "$COMMENT" = "true" ] && [ "$EVENT_NAME" = "pull_request" ]; then
+          args+=(--github)
+        fi
+
+        set +e
+        npx --yes "$tool" actormap "${args[@]}"
+        status=$?
+        set -e
+
+        if [ "$status" -eq 0 ]; then
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+        else
+          echo "result=fail" >> "$GITHUB_OUTPUT"
+          exit "$status"
+        fi
+
+    - name: 写摘要
+      if: always()
+      shell: bash
+      run: |
+        if [ -f .actormap/map.md ]; then
+          {
+            echo "### ActorMap 断言清单"
+            echo ""
+            head -40 .actormap/map.md
+          } >> "$GITHUB_STEP_SUMMARY" || true
+        fi

@@ -1,5 +1,9 @@
 # ActorMap
 
+[![spec-check](https://github.com/eust-w/actor-map/actions/workflows/speccheck.yml/badge.svg)](https://github.com/eust-w/actor-map/actions/workflows/speccheck.yml)
+[![Marketplace](https://img.shields.io/badge/GitHub%20Actions-ActorMap%20Gate-6f42c1?logo=githubactions)](https://github.com/marketplace/actions/actormap-gate)
+[![npm](https://img.shields.io/badge/npx-github%3Aeust--w%2Factor--map-blue)](https://www.npmjs.com/package/actor-map)
+
 **通过对话把需求聊定，而不是把需求写成文档。**
 
 产品经理用自然语言讲流程，AI 一边问一边把「谁、在什么状态下、做了什么、变成什么」落成断言；
@@ -36,6 +40,37 @@ pi --extension ./.pi/extensions/actormap.ts
 
 > 项目级扩展要过一次项目信任；如果你已经信任过，直接 `pi` 就会自动加载 `.pi/extensions/`。
 > `AGENTS.md` 会被自动注入，里面是访谈协议。
+
+## 三种用法，同一个内核
+
+```bash
+# 1. 当 CLI 用（不用 clone，不用装）
+npx --yes github:eust-w/actor-map gate --ir .actormap/ir.json
+
+# 2. 当 PR 门禁用（在 .github/workflows/ci.yml 里）
+```
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+
+steps:
+  - uses: actions/checkout@v4
+  - uses: eust-w/actor-map@v0.7.0
+    with:
+      ir: .actormap/ir.json
+      repo: .
+      adapter: .actormap/adapter.mjs
+      strict: false
+```
+
+```bash
+# 3. 当 pi 扩展用（边聊边落断言）
+pi --extension ./.pi/extensions/actormap.ts
+```
+
+三个入口共用一套代码：`src/` 是源码，`dist/` 是编译产物（`bin` 指向它——Node 拒绝对 `node_modules` 里的文件做类型剥离，所以不能直接发 `.ts`）。`tests/entrypoints.test.ts` 钉住这三个入口不许漂移。
 
 ## 五轮对话之后
 
@@ -451,6 +486,16 @@ src/extension/index.ts   pi 绑定层，只声明 schema
 - drift 接入 PR 门禁（`.github/workflows/speccheck.yml` 已经跑了测试和校验，
   还没在真实仓库上挂 drift）
 - 图形化编辑（当前是终端对话 + 生成的自包含 HTML 地图）
+
+## 从源码构建
+
+```bash
+npm ci
+npm run build        # tsc → dist（import 说明符会被重写成 .js）
+npm test             # 105 条，不需要任何依赖
+```
+
+`dist/` 是提交进仓库的：这样 `npx github:eust-w/actor-map` 不需要在安装时编译，CI 里也有一步 `git diff --exit-code -- dist` 防止它过期。
 
 ## 许可证
 

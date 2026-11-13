@@ -25,6 +25,38 @@ import { formatConformance, summarize } from "./conformance/report.ts";
 
 const argv = process.argv.slice(2);
 const command = argv[0] ?? "report";
+
+const USAGE = `actormap —— 把需求聊成可执行的断言，再用断言拦住 PR
+
+用法：
+  actormap init [产品名]
+  actormap validate [--ir <path>]
+  actormap report [--out f.md]
+  actormap render [--out .actormap/map.html]
+  actormap scan [repo] [--seed] [--force]
+  actormap drift [repo]
+  actormap gate [--repo .] [--no-repo] [--adapter ./adapter.mjs]
+                 [--strict] [--json] [--md-out f.md] [--write-fixes fix.json]
+  actormap gate --github | --dry-run [--pr N] [--annotate] [--diff pr.patch]
+  actormap conformance --adapter ./adapter.mjs [--filter …] [--json]
+  actormap export [--out 目录]
+  actormap change --reason "…" --file changes.json
+  actormap history
+
+通用参数：
+  --ir <path>   IR 文件路径（默认 .actormap/ir.json）
+
+文档：https://github.com/eust-w/actor-map`;
+
+if (command === "--help" || command === "-h" || command === "help") {
+	console.log(USAGE);
+	process.exit(0);
+}
+if (command === "--version" || command === "-v") {
+	const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
+	console.log(pkg.version);
+	process.exit(0);
+}
 const flag = (name: string): string | undefined => {
 	const i = argv.indexOf(`--${name}`);
 	return i >= 0 ? argv[i + 1] : undefined;

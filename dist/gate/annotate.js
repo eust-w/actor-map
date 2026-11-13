@@ -1,0 +1,244 @@
+/**
+ * 把门禁发现变成「能贴在 diff 某一行上的东西」。
+ *
+ * 两个通道，都实现，因为它们的成本完全不同：
+ *   Workflow commands（::error file=…,line=…） —— 零权限，Actions 里自动出现在 diff 上
+ *   PR review comments                        —— 需要 token，但能带解释和讨论
+ *
+ * 关键约束：GitHub 只接受落在 diff 里的行。所以所有标注都要先过一遍 changed-lines。
+ * 落不进去的不丢，降级写进 review 正文。
+ */
+export function collectAnnotations(report) {
+    const annotations = [];
+    for (const check of report.checks) {
+        for (const item of check.items) {
+            annotations.push({
+                level: item.level,
+                file: item.file,
+                line: item.line,
+                startLine: item.startLine,
+                endLine: item.endLine,
+                title: `[${check.title}] ${item.title}`,
+                message: item.message,
+                fix: item.fix,
+                marker: item.marker,
+            });
+        }
+    }
+    return annotations;
+}
+// ── GitHub Actions 工作流命令 ────────────────────────────────────────────
+function escapeData(value) {
+    return value.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+}
+function escapeProperty(value) {
+    return escapeData(value).replace(/:/g, "%3A").replace(/,/g, "%2C");
+}
+export function workflowCommands(annotations) {
+    return annotations.map((a) => {
+        const props = [];
+        if (a.file)
+            props.push(`file=${escapeProperty(a.file)}`);
+        if (a.file && typeof a.line === "number")
+            props.push(`line=${a.line}`);
+        props.push(`title=${escapeProperty(a.title)}`);
+        const level = a.level === "error" ? "error" : "warning";
+        return `::${level} ${props.join(",")}::${escapeData(a.message)}`;
+    });
+}
+// ── diff 行号 ────────────────────────────────────────────────────────────
+/**
+ * 从 GitHub PR files API 的 patch 里取出「新增行」的新文件行号。
+ * 只标新增行：注释在别人的上下文行上会让 review 变得很吵。
+ */
+export function parsePatchAdditions(patch) {
+    const added = new Set();
+    if (!patch)
+        return added;
+    let newLine = 0;
+    for (const raw of patch.split("\n")) {
+        const hunk = raw.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+        if (hunk) {
+            newLine = Number(hunk[1]);
+            continue;
+        }
+        if (raw.startsWith("+")) {
+            added.add(newLine);
+            newLine += 1;
+            continue;
+        }
+        if (raw.startsWith("-"))
+            continue;
+        if (raw.startsWith("\\"))
+            continue;
+        newLine += 1;
+    }
+    return added;
+}
+/**
+ * 本地跑的时候用：从一个 unified diff 里取出「每个文件新增了哪些行」。
+ * 这样 --dry-run 不需要网络，也能预览会贴在哪几行。
+ */
+export function parseUnifiedDiff(text) {
+    const map = new Map();
+    let current;
+    let newLine = 0;
+    for (const raw of text.split("\n")) {
+        if (raw.startsWith("+++ ")) {
+            const path = raw.slice(4).trim().replace(/^b\//, "");
+            current = path === "/dev/null" ? undefined : path;
+            if (current)
+                map.set(current, map.get(current) ?? new Set());
+            continue;
+        }
+        if (raw.startsWith("diff --git")) {
+            current = undefined;
+            continue;
+        }
+        const hunk = raw.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+        if (hunk) {
+            newLine = Number(hunk[1]);
+            continue;
+        }
+        if (!current)
+            continue;
+        if (raw.startsWith("+")) {
+            map.get(current)?.add(newLine);
+            newLine += 1;
+        }
+        else if (raw.startsWith("-") || raw.startsWith("\\")) {
+            continue;
+        }
+        else {
+            newLine += 1;
+        }
+    }
+    return map;
+}
+export function additionsByFile(files) {
+    const map = new Map();
+    for (const file of files) {
+        map.set(file.filename, parsePatchAdditions(file.patch));
+    }
+    return map;
+}
+// ── Review 载荷 ─────────────────────────────────────────────────────────
+/**
+ * 评论正文。带 suggestion 块时，GitHub 会渲染出「Apply suggestion」按钮。
+ * 空内容的 suggestion 就是「删掉这几行」——所以只在范围是整个语句块时才给。
+ */
+export function fixBlock(fix) {
+    const parts = [
+        "<details><summary>也可以：把这条补进 IR（复制 YAML 或跑一条命令）</summary>",
+        "",
+        "```yaml",
+        fix.yaml,
+        "```",
+        "",
+        "```bash",
+        fix.command,
+        "```",
+    ];
+    if (fix.note)
+        parts.push("", `> ${fix.note}`);
+    parts.push("", "</details>");
+    return parts.join("\n");
+}
+function commentBody(annotation, withSuggestion) {
+    const parts = [`**${annotation.title}**`, "", annotation.message];
+    if (annotation.fix)
+        parts.push("", fixBlock(annotation.fix));
+    // suggestion 放最后：GitHub 取的是评论里的 suggestion 块，别让别的围栏干扰
+    if (withSuggestion) {
+        parts.push("", "```suggestion", "```");
+    }
+    parts.push("", `<!-- actormap:${annotation.marker} -->`);
+    return parts.join("\n");
+}
+function suggestionRange(annotation, lines) {
+    const end = annotation.endLine;
+    const start = annotation.startLine;
+    if (typeof start !== "number" || typeof end !== "number")
+        return undefined;
+    if (end <= start)
+        return undefined;
+    // GitHub 要求整个范围都在 diff 里，否则整条评论会被 422 拒掉
+    for (let line = start; line <= end; line += 1) {
+        if (!lines.has(line))
+            return undefined;
+    }
+    return { start, end };
+}
+function table(report) {
+    const tag = (status) => status === "pass" ? "✅" : status === "fail" ? "❌" : status === "warn" ? "⚠️" : "⏭️";
+    const lines = ["| 检查 | 结果 | 说明 |", "| --- | --- | --- |"];
+    for (const check of report.checks) {
+        lines.push(`| ${check.title} | ${tag(check.status)} | ${check.summary} |`);
+    }
+    return lines.join("\n");
+}
+export const VERDICT_MARKER = "<!-- actormap:verdict -->";
+function resolvePath(file, additions) {
+    if (additions.has(file))
+        return file;
+    const suffix = `/${file.replace(/^\.\//, "")}`;
+    for (const key of additions.keys()) {
+        if (key.endsWith(suffix))
+            return key;
+    }
+    return undefined;
+}
+export function buildReviewPayload(report, annotations, additions) {
+    const comments = [];
+    const skipped = [];
+    for (const annotation of annotations) {
+        if (!annotation.file) {
+            skipped.push({ annotation, reason: "没有代码位置" });
+            continue;
+        }
+        if (!additions) {
+            skipped.push({ annotation, reason: "没有 PR diff 信息" });
+            continue;
+        }
+        // 扫描结果里的路径可能相对仓库根，diff 里的路径相对 PR 根，做一次后缀匹配兜底
+        const match = resolvePath(annotation.file, additions);
+        const lines = match ? additions.get(match) : undefined;
+        if (!match || !lines) {
+            skipped.push({ annotation, reason: "这个文件不在本次改动里" });
+            continue;
+        }
+        if (typeof annotation.line !== "number" || !lines.has(annotation.line)) {
+            skipped.push({ annotation, reason: `第 ${annotation.line ?? "?"} 行不在本次新增里` });
+            continue;
+        }
+        const range = suggestionRange(annotation, lines);
+        comments.push({
+            path: match,
+            line: range ? range.end : annotation.line,
+            ...(range ? { start_line: range.start, start_side: "RIGHT" } : {}),
+            side: "RIGHT",
+            body: commentBody(annotation, Boolean(range)),
+        });
+    }
+    const head = report.ok
+        ? `### ✅ ActorMap 门禁通过 · ${report.product} v${report.version}`
+        : `### ❌ ActorMap 门禁未通过 · ${report.product} v${report.version}`;
+    const parts = [VERDICT_MARKER, head, "", table(report)];
+    if (comments.length > 0) {
+        parts.push("", `已在 diff 上留了 **${comments.length}** 条行内备注。`);
+    }
+    if (skipped.length > 0) {
+        parts.push("", "<details><summary>落在 diff 之外的发现（" + skipped.length + " 条）</summary>", "");
+        for (const item of skipped) {
+            const where = item.annotation.file
+                ? `\`${item.annotation.file}:${item.annotation.line ?? "?"}\``
+                : "—";
+            parts.push(`- **${item.annotation.title}** ${where} — ${item.reason}`, "", item.annotation.message.replace(/\n/g, " "));
+        }
+        parts.push("", "</details>");
+    }
+    if (!report.ok) {
+        parts.push("", "> 修完之后重跑 `actormap gate`。要让门禁放行已知问题，改 `.actormap/gate.json` 并写清 reason。");
+    }
+    return { body: parts.join("\n"), comments, skipped };
+}

@@ -70,3 +70,27 @@ jobs:
 
       - name: 导出四份投影
         run: node src/cli.ts export --ir examples/expense/ir.json --out /tmp/export
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm ci
+
+      - name: dist 不能过期
+        run: |
+          npm run build
+          git diff --exit-code -- dist
+
+      - name: 打包后能在别的项目里跑起来
+        run: |
+          npm pack --silent
+          mkdir -p /tmp/consumer && cd /tmp/consumer && npm init -y > /dev/null
+          npm i --silent "$GITHUB_WORKSPACE"/actor-map-*.tgz
+          ./node_modules/.bin/actormap --version
+          ./node_modules/.bin/actormap validate --ir node_modules/actor-map/examples/expense/ir.json
+
