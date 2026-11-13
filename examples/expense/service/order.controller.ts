@@ -49,3 +49,12 @@ router.post("/orders/:id/pay", async (req, res) => {
   }
   res.ok(order);
 });
+
+router.post("/orders/:id/cancel", async (req, res) => {
+  const order = await orders.find(req.params.id);
+  if (order.status === "submitted" && req.user.role === "employee") {
+    order.status = "cancelled";
+    await order.save();
+  }
+  res.ok(order);
+});
