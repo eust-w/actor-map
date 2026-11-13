@@ -49,3 +49,15 @@ router.post("/orders/:id/pay", async (req, res) => {
   }
   res.ok(order);
 });
+
+/**
+ * 演示用：这一段在 IR 里没有，门禁应该在新增行上贴评论。
+ */
+router.post("/orders/:id/cancel", async (req, res) => {
+  const order = await orders.find(req.params.id);
+  if (order.status === "submitted" && req.user.role === "employee") {
+    order.status = "cancelled";
+    await order.save();
+  }
+  res.ok(order);
+});
