@@ -16,6 +16,8 @@ import type { IRFile } from "../ir/types.ts";
 import { validate } from "../validate/validate.ts";
 import { scanAndDrift } from "../scan/drift.ts";
 import { runConformance } from "../conformance/harness.ts";
+import { buildIrFix } from "./suggest.ts";
+import type { IrFix } from "./suggest.ts";
 
 export type CheckId = "validate" | "drift" | "conformance";
 export type CheckStatus = "pass" | "fail" | "skip" | "warn";
@@ -31,6 +33,8 @@ export interface GateItem {
 	endLine?: number;
 	title: string;
 	message: string;
+	/** 反向建议：补进 IR 应该长什么样 */
+	fix?: IrFix;
 	/** 稳定标记，用于 PR 评论去重 */
 	marker: string;
 }
@@ -200,6 +204,7 @@ export async function runGate(ir: IRFile, options: GateOptions): Promise<GateRep
 				endLine: where?.endLine,
 				title: `需求里没有这条迁移：${a.from} --${a.action}--> ${a.to}`,
 				message: `${item.reason}\n\nIR 里没有确认过这条。要么补进 IR（\`ir_change\`，写清 reason），要么删掉这段代码。`,
+				fix: buildIrFix(ir, a),
 				marker: `drift:${a.from}|${a.action}|${a.to}`,
 			};
 		});

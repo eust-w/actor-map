@@ -18,6 +18,7 @@ import { formatScanReport, scanRepo } from "./scan/scanner.ts";
 import { formatDrift, scanAndDrift } from "./scan/drift.ts";
 import { runConformance } from "./conformance/harness.ts";
 import { formatGate, gateMarkdown, loadWaivers, runGate } from "./gate/index.ts";
+import { mergeFixes } from "./gate/suggest.ts";
 import { additionsByFile, buildReviewPayload, collectAnnotations, parseUnifiedDiff, workflowCommands } from "./gate/annotate.ts";
 import { fetchPrFiles, listExisting, postReview, resolveContext } from "./gate/github.ts";
 import { formatConformance, summarize } from "./conformance/report.ts";
@@ -180,6 +181,18 @@ switch (command) {
 		// 走 stderr —— GitHub 两个流都解析工作流命令，而 stdout 要留给 --json / --dry-run 的载荷
 		if (has("annotate") || (process.env.GITHUB_ACTIONS && !has("no-annotate"))) {
 			for (const line of workflowCommands(annotations)) console.error(line);
+		}
+
+		const fixesOut = flag("write-fixes");
+		if (fixesOut) {
+			const fixes = report.checks.flatMap((c) => c.items.flatMap((i) => (i.fix ? [i.fix] : [])));
+			if (fixes.length === 0) {
+				console.log("没有需要补进 IR 的迁移。");
+			} else {
+				const target = writeOut(fixesOut, mergeFixes(fixes));
+				console.log(`已写出 ${fixes.length} 条待补断言：${target}`);
+				console.log(`补进去：actormap change --file ${fixesOut} --reason "…"`);
+			}
 		}
 
 		const mdOut = flag("md-out");

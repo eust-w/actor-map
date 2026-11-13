@@ -10,6 +10,7 @@
  */
 
 import type { GateReport, GateItem } from "./index.ts";
+import type { IrFix } from "./suggest.ts";
 
 export interface Annotation {
 	level: "error" | "warning" | "notice";
@@ -20,6 +21,8 @@ export interface Annotation {
 	endLine?: number;
 	title: string;
 	message: string;
+	/** 补进 IR 的反向建议 */
+	fix?: IrFix;
 	marker: string;
 }
 
@@ -55,6 +58,7 @@ export function collectAnnotations(report: GateReport): Annotation[] {
 				endLine: item.endLine,
 				title: `[${check.title}] ${item.title}`,
 				message: item.message,
+				fix: item.fix,
 				marker: item.marker,
 			});
 		}
@@ -168,12 +172,31 @@ export function additionsByFile(files: PrFile[]): Map<string, Set<number>> {
  * 评论正文。带 suggestion 块时，GitHub 会渲染出「Apply suggestion」按钮。
  * 空内容的 suggestion 就是「删掉这几行」——所以只在范围是整个语句块时才给。
  */
+export function fixBlock(fix: IrFix): string {
+	const parts = [
+		"<details><summary>也可以：把这条补进 IR（复制 YAML 或跑一条命令）</summary>",
+		"",
+		"```yaml",
+		fix.yaml,
+		"```",
+		"",
+		"```bash",
+		fix.command,
+		"```",
+	];
+	if (fix.note) parts.push("", `> ${fix.note}`);
+	parts.push("", "</details>");
+	return parts.join("\n");
+}
+
 function commentBody(annotation: Annotation, withSuggestion: boolean): string {
 	const parts = [`**${annotation.title}**`, "", annotation.message];
+	if (annotation.fix) parts.push("", fixBlock(annotation.fix));
+	// suggestion 放最后：GitHub 取的是评论里的 suggestion 块，别让别的围栏干扰
 	if (withSuggestion) {
-		parts.push("", "```suggestion", "```", "");
+		parts.push("", "```suggestion", "```");
 	}
-	parts.push(`<!-- actormap:${annotation.marker} -->`);
+	parts.push("", `<!-- actormap:${annotation.marker} -->`);
 	return parts.join("\n");
 }
 

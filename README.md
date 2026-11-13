@@ -148,6 +148,7 @@ actormap scan <repo> [--seed] [--force]
 actormap drift <repo>                      # 代码多了没确认的迁移 → 退出码 1
 actormap conformance --adapter ./a.mjs     # 契约测试，有失败 → 退出码 1
 actormap gate [--repo .] [--adapter …]     # 三项合一的门禁，默认扫当前目录
+actormap gate --write-fixes fix.json       # 把代码多出来的迁移转成可应用的 IR 补丁
 actormap gate --no-repo --strict           # 只要 validate + conformance，跳过即失败
 actormap export --out .actormap/export
 actormap change --reason "…" --file changes.json
@@ -230,6 +231,43 @@ IR 里没有确认过这条。要么补进 IR，要么删掉这段代码。
 - 只删 `order.status = "cancelled"` 这一行会留下语法破损的 `if`，所以范围必须是整个 handler。
 - **只有这个块里恰好一条迁移时才给范围。** 块里混了别的行为，删整块会误伤 —— 这时宁可不给建议，退化成普通评论。
 - 范围必须**整段落在本次 diff 的新增行里**。被 diff 截断就不出 suggestion（GitHub 会 422，而且真删出来也是坏代码）。
+
+#### 两条路，都只差一次点击
+
+删掉代码是其中一条。另一条是「其实该保留」，所以评论里同时给出**可粘贴的 IR 补丁**：
+
+<details>
+<summary>也可以：把这条补进 IR（复制 YAML 或跑一条命令）</summary>
+
+```yaml
+- entity: order
+  from: submitted
+  action: cancel
+  to: cancelled
+  by: employee
+  guards: []
+  verify: ""
+  source: "代码：order.controller.ts:59"
+  status: confirmed
+```
+
+```bash
+actormap change --file .actormap/drift-fix.json \
+  --reason "补上代码里已有、IR 没确认的迁移：submitted --cancel--> cancelled"
+```
+</details>
+
+`by` 不是瞎猜的 —— 扫描器会记住那个 handler 里的角色判断（`req.user.role === "employee"`）。
+推断不出来的字段会标 `assumed` 并在注释里明说，不会让人无声地接受一个假设。
+
+批量取全部补丁：
+
+```bash
+actormap gate --write-fixes .actormap/drift-fix.json
+actormap change --file .actormap/drift-fix.json --reason "…"
+```
+
+**应用补丁之后门禁会变绿**，但校验器可能立刻报出新的缺口 —— 比如新加的 `cancel` 和 `approve` 在同一状态下区间重叠（`branch_overlap`）。这不是 bug，是补上一条需求之后自然暴露的下一个该问的问题。
 
 三条规则：
 
@@ -388,6 +426,7 @@ src/conformance/harness.ts 接适配器执行，用 runner.mjs 当裁判
 src/gate/index.ts        三项检查合一 + 豁免/降级 + Markdown 摘要
 src/gate/annotate.ts     发现 → 行内标注：diff 过滤、工作流命令、review 载荷
 src/gate/github.ts       PR files / comments / reviews（只依赖 fetch，可注入）
+src/gate/suggest.ts      反向建议：可粘贴的 IR YAML + 可执行的 change 载荷
 src/report/checklist.ts  ✔/⚠ 断言清单
 src/report/html.ts       单文件 HTML 地图
 src/extension/handlers.ts 九个工具的实际逻辑（可单测）

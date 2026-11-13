@@ -233,6 +233,8 @@ export function scanRepo(root: string): ScanReport {
 		entity: string;
 		/** 这条迁移所在的完整语句块，用来生成可以一键 Apply 的 suggestion */
 		block?: { start: number; end?: number };
+		/** 这个块里出现的角色判断，用来推测发起者 */
+		actorHint?: string;
 	}> = [];
 	const actors = new Map<string, Evidence>();
 	const systems = new Map<string, Evidence>();
@@ -253,6 +255,7 @@ export function scanRepo(root: string): ScanReport {
 		let currentRoute: { method: string; path: string } | undefined;
 		// 只在能确定「完整语句块」时才记 range：删半截代码比不删更糟
 		let block: { start: number; end?: number } | undefined;
+		let blockActor: string | undefined;
 		let inBlock = false;
 		let depth = 0;
 		let opened = false;
@@ -310,6 +313,7 @@ export function scanRepo(root: string): ScanReport {
 				const m = line.match(pattern.re);
 				if (m) {
 					block = { start: i };
+					blockActor = undefined;
 					inBlock = true;
 					depth = 0;
 					opened = false;
@@ -358,6 +362,7 @@ export function scanRepo(root: string): ScanReport {
 					evidence,
 					entity: entityGuess ?? "main",
 					block,
+					actorHint: blockActor,
 				});
 				break;
 			}
@@ -372,6 +377,7 @@ export function scanRepo(root: string): ScanReport {
 						const role = token.replace(/["'`[\]]/g, "").trim();
 						if (!role || role.length > 30) continue;
 						if (/^(true|false|null|undefined|role|roles|permissions)$/i.test(role)) continue;
+						if (!blockActor) blockActor = role;
 						if (!actors.has(role)) {
 							actors.set(role, evidence);
 							findings.push({ kind: "actor", confidence: "medium", value: role, evidence });
@@ -467,6 +473,7 @@ export function scanRepo(root: string): ScanReport {
 				...(t.block?.end !== undefined && blockCount.get(t.block) === 1
 					? { startLine: t.block.start + 1, endLine: t.block.end + 1 }
 					: {}),
+				...(t.actorHint ? { actorHint: t.actorHint } : {}),
 			},
 		};
 		skeleton.assertions.push(assertion);

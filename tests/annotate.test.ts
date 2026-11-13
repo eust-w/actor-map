@@ -200,3 +200,35 @@ test("没有块范围时退化成普通评论", () => {
 	assert.equal(old.start_line, undefined);
 	assert.doesNotMatch(old.body, /suggestion/);
 });
+
+test("注释里同时给出反向建议和删除 suggestion，suggestion 在最后", () => {
+	const items = report().checks[1].items.map((i) => ({
+		...i,
+		fix: {
+			entity: "order",
+			from: "submitted",
+			action: "cancel",
+			to: "cancelled",
+			by: "employee",
+			status: "confirmed" as const,
+			yaml: "- entity: order\n  action: cancel",
+			json: "[]",
+			command: "actormap change --file x.json",
+		},
+	}));
+	const withFix: GateReport = {
+		...report(),
+		checks: [
+			report().checks[0],
+			{ ...report().checks[1], items },
+			report().checks[2],
+		],
+	};
+	const payload = buildReviewPayload(withFix, collectAnnotations(withFix), new Map([["src/order.ts", new Set([10, 11, 12])]]));
+	const body = payload.comments[0].body;
+	assert.match(body, /<details><summary>也可以：把这条补进 IR/);
+	assert.match(body, /```yaml\n- entity: order/);
+	assert.match(body, /actormap change --file x\.json/);
+	assert.ok(body.indexOf("```suggestion") > body.indexOf("```yaml"), "suggestion 必须排在最后");
+	assert.ok(body.trimEnd().endsWith("-->"), "标记收尾");
+});
