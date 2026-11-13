@@ -114,12 +114,13 @@ test("确认终态后，缺口里少一条", async () => {
 			source: "提交",
 		})) as { body: { state: ReturnType<typeof snapshot> } };
 		const terminalGap = before.body.state.issues.filter((i) => i.code === "unconfirmed_terminal");
-		assert.ok(terminalGap.length > 0);
+		assert.ok(terminalGap.some((i) => i.refs.includes("submitted")));
 
 		const res = await call(dir, "POST", "/api/terminals", { state: "submitted" });
 		assert.equal(res.status, 200);
 		const after = (res.body as { state: ReturnType<typeof snapshot> }).state;
-		assert.ok(!after.issues.some((i) => i.code === "unconfirmed_terminal"));
+		assert.ok(!after.issues.some((i) => i.code === "unconfirmed_terminal" && i.refs.includes("submitted")));
+		assert.ok(after.issues.length < before.body.state.issues.length, "确认终态后缺口总数应当减少");
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}

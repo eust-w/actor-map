@@ -106,6 +106,10 @@ export function buildGraphs(ir: IRFile): EntityGraph[] {
 			inMap.set(e.to, i);
 		}
 
+		// 创建边的目标也是状态。否则「只有 ∅ --create--> draft」这种刚起步的 IR
+		// 会被当成空图，什么缺口都报不出来 —— 而那正是访谈刚开始的时刻。
+		for (const target of created) states.add(target);
+
 		const all = [...states].sort();
 		const implicitEntry = created.length === 0;
 		const entryPool = implicitEntry ? all.filter((s) => s !== EMPTY_STATE) : created;

@@ -10,6 +10,13 @@ import { validate } from "../validate/validate.ts";
 import { addActorTool, addAssertionTool, changeTool, gateTool, validateTool } from "../extension/handlers.ts";
 import type { AddActorParams, AddAssertionParams, ChangeParams, GateParams } from "../extension/handlers.ts";
 import type { IRFile } from "../ir/types.ts";
+import { createGenerate, resolveLlmConfig } from "./llm.ts";
+import { runTurn } from "./agent.ts";
+import type { ChatMessage, ToolEvent } from "./agent.ts";
+import type { Generate } from "./llm.ts";
+
+const FALLBACK_HINT =
+	"没有可用的模型通道。设置 ACTORMAP_LLM_BASE / ACTORMAP_LLM_KEY / ACTORMAP_LLM_MODEL（或 GOOGLE_GEMINI_BASE_URL / GEMINI_API_KEY / GEMINI_MODEL）后重启服务。";
 
 export interface ApiRequest {
 	method: string;
@@ -77,7 +84,12 @@ function bad(message: string): ApiResponse {
 	return { status: 400, body: { error: message } };
 }
 
-export async function handleApi(req: ApiRequest, cwd: string): Promise<ApiResponse> {
+export interface ApiDeps {
+	/** 注入点：测试里塞一个假模型，生产用一个真客户端 */
+	generate?: Generate;
+}
+
+export async function handleApi(req: ApiRequest, cwd: string, deps: ApiDeps = {}): Promise<ApiResponse> {
 	const body = (req.body ?? {}) as Record<string, unknown>;
 
 	try {
@@ -122,6 +134,36 @@ export async function handleApi(req: ApiRequest, cwd: string): Promise<ApiRespon
 				cwd,
 			);
 			return { status: 200, body: { message: result.text, details: result.details } };
+		}
+
+		if (req.method === "GET" && req.path === "/api/chat/status") {
+			const config = resolveLlmConfig();
+			return {
+				status: 200,
+				body: config ? { available: true, model: config.model } : { available: false, hint: FALLBACK_HINT },
+			};
+		}
+
+		if (req.method === "POST" && req.path === "/api/chat") {
+			const message = String(body.message ?? "").trim();
+			if (!message) return bad("message 必填");
+			const history = Array.isArray(body.history) ? (body.history as ChatMessage[]) : [];
+
+			const generate = deps.generate ?? (() => {
+				const config = resolveLlmConfig();
+				if (!config) throw new Error(FALLBACK_HINT);
+				return createGenerate(config);
+			})();
+
+			const result = await runTurn(cwd, [...history, { role: "user", text: message }], generate);
+			return {
+				status: 200,
+				body: {
+					reply: result.reply,
+					events: result.events satisfies ToolEvent[],
+					state: snapshot(cwd),
+				},
+			};
 		}
 
 		return { status: 404, body: { error: `没有这个接口：${req.method} ${req.path}` } };

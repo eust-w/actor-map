@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ActorMap · 本地工作台</title>
+<title>ActorMap · 访谈工作台</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -14,69 +14,81 @@
   </div>
   <div class="stats" id="stats"></div>
   <div class="actions gate-controls">
-    <input id="gate-repo" placeholder="要扫描的目录（.）" value="." title="实现代码目录">
+    <input id="gate-repo" placeholder="扫描目录（.）" value="." title="实现代码目录">
     <input id="gate-adapter" placeholder="适配器（可空）" title="契约测试适配器路径">
     <button id="btn-gate" class="primary">跑门禁</button>
   </div>
 </header>
 
 <main class="grid">
-  <section class="card">
-    <h2>角色 <span class="muted" id="actor-count"></span></h2>
-    <ul id="actors" class="list"></ul>
-    <details class="add">
-      <summary>登记角色</summary>
-      <form id="form-actor">
-        <label>id<input name="id" placeholder="employee" required></label>
-        <label>名称<input name="name" placeholder="员工" required></label>
-        <label>类型
-          <select name="type">
-            <option value="human">人</option>
-            <option value="anonymous">匿名访客</option>
-            <option value="system">系统（定时/自动）</option>
-            <option value="external">外部（回调/推送）</option>
-            <option value="virtual">代理</option>
-            <option value="batch">批量</option>
-          </select>
-        </label>
-        <label>触发条件<input name="trigger" placeholder="system/external 必填"></label>
-        <button type="submit">添加</button>
-      </form>
-    </details>
+  <section class="card chat-card">
+    <h2>对话 <span class="muted" id="model-status"></span></h2>
+    <div id="chat-log" class="chat-log"></div>
+    <form id="form-chat" class="chat-form">
+      <textarea name="message" rows="2" placeholder="我想做一个报销系统：员工填完单子提交，主管批。"></textarea>
+      <button type="submit" class="primary" id="btn-send">发送</button>
+    </form>
+    <div class="chat-hint muted">对话里改的图，右侧立刻更新。模型只能通过工具改 IR，编不出不存在的状态。</div>
   </section>
 
-  <section class="card graph-card">
-    <h2>可操作地图 <span class="muted">点状态高亮相关迁移</span></h2>
-    <div id="graph" class="graph"></div>
-  </section>
+  <div class="right">
+    <section class="card graph-card">
+      <h2>可操作地图 <span class="muted">点状态高亮相关迁移</span></h2>
+      <div id="graph" class="graph"></div>
+    </section>
 
-  <section class="card">
-    <h2>断言 <span class="muted" id="assert-count"></span></h2>
-    <ul id="assertions" class="list assertions"></ul>
-    <details class="add" open>
-      <summary>记一条断言</summary>
-      <form id="form-assertion">
-        <div class="row">
-          <label>从<input name="from" placeholder="draft 或 ∅" required></label>
-          <label>动作<input name="action" placeholder="submit" required></label>
-          <label>到<input name="to" placeholder="submitted" required></label>
-        </div>
-        <div class="row">
-          <label>谁发起<select name="by" id="by-select" required></select></label>
-          <label>条件<input name="guards" placeholder="金额 > 5000，多条用 ; 分隔"></label>
-        </div>
-        <label>原话依据<input name="source" placeholder="员工填完点提交"></label>
-        <label>验收信号<input name="verify" placeholder="出现在主管待办"></label>
-        <button type="submit">记录</button>
-      </form>
-    </details>
-  </section>
+    <section class="card">
+      <h2>角色 <span class="muted" id="actor-count"></span></h2>
+      <ul id="actors" class="list compact"></ul>
+      <details class="add">
+        <summary>手动登记角色 / 记断言</summary>
+        <form id="form-actor">
+          <div class="row">
+            <label>id<input name="id" placeholder="employee" required></label>
+            <label>名称<input name="name" placeholder="员工" required></label>
+          </div>
+          <div class="row">
+            <label>类型
+              <select name="type">
+                <option value="human">人</option>
+                <option value="anonymous">匿名访客</option>
+                <option value="system">系统（定时/自动）</option>
+                <option value="external">外部（回调/推送）</option>
+                <option value="virtual">代理</option>
+                <option value="batch">批量</option>
+              </select>
+            </label>
+            <label>触发条件<input name="trigger" placeholder="system/external 必填"></label>
+          </div>
+          <button type="submit">添加角色</button>
+        </form>
+        <form id="form-assertion">
+          <div class="row">
+            <label>从<input name="from" placeholder="draft 或 ∅" required></label>
+            <label>动作<input name="action" placeholder="submit" required></label>
+            <label>到<input name="to" placeholder="submitted" required></label>
+          </div>
+          <div class="row">
+            <label>谁发起<select name="by" id="by-select" required></select></label>
+            <label>条件<input name="guards" placeholder="金额 > 5000；多条用 ; 分隔"></label>
+          </div>
+          <label>原话依据<input name="source" placeholder="员工填完点提交"></label>
+          <button type="submit">记录断言</button>
+        </form>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>断言 <span class="muted" id="assert-count"></span></h2>
+      <ul id="assertions" class="list compact assertions"></ul>
+    </section>
+
+    <section class="card">
+      <h2>缺口 <span class="muted">点一条把状态填进表单</span></h2>
+      <ul id="issues" class="issues"></ul>
+    </section>
+  </div>
 </main>
-
-<section class="card wide" id="issues-card">
-  <h2>缺口 <span class="muted">每条都带着下一句该问的话，点一下填进表单</span></h2>
-  <ul id="issues" class="issues"></ul>
-</section>
 
 <section class="card wide hidden" id="gate-card">
   <h2>门禁结果 <button id="btn-gate-close" class="link">收起</button></h2>

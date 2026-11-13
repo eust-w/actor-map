@@ -3,6 +3,9 @@
 const $ = (sel) => document.querySelector(sel);
 let STATE = null;
 let selected = null;
+/** 只带文本的对话历史；IR 摘要每轮由服务端重新注入，所以这里可以很短 */
+let HISTORY = [];
+let MODEL = { available: false };
 
 async function api(path, body) {
   const res = await fetch(path, body ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : {});
@@ -54,6 +57,13 @@ function render() {
   renderGraph();
   renderIssues();
   renderBySelect();
+  renderModelStatus();
+}
+
+function renderModelStatus() {
+  const el = $("#model-status");
+  el.textContent = MODEL.available ? `· ${MODEL.model}` : "· 未配置模型";
+  el.title = MODEL.available ? "" : MODEL.hint || "";
 }
 
 function renderActors() {
@@ -282,6 +292,69 @@ function prefillFromIssue(issue) {
   toast("已按缺口填好起点/终点，补上动作即可");
 }
 
+// ── 对话 ────────────────────────────────────────────────────────────────
+
+function appendMessage(role, text, events = []) {
+  const node = el("div", { class: `msg ${role}` });
+  node.append(document.createTextNode(text));
+  if (events.length > 0) {
+    const box = el("div", { class: "events" });
+    for (const event of events) {
+      box.append(el("div", { class: `event ${event.ok ? "" : "fail"}`, text: `· ${event.detail.split("\n")[0]}` }));
+    }
+    node.append(box);
+  }
+  $("#chat-log").append(node);
+  $("#chat-log").scrollTop = $("#chat-log").scrollHeight;
+  return node;
+}
+
+function appendThinking() {
+  const node = el("div", { class: "msg assistant thinking", text: "思考中…" });
+  $("#chat-log").append(node);
+  $("#chat-log").scrollTop = $("#chat-log").scrollHeight;
+  return node;
+}
+
+async function sendMessage(text) {
+  if (!text.trim()) return;
+  appendMessage("user", text);
+  HISTORY.push({ role: "user", text });
+  const placeholder = appendThinking();
+  const button = $("#btn-send");
+  button.disabled = true;
+  try {
+    const result = await api("/api/chat", { message: text, history: HISTORY.slice(0, -1) });
+    placeholder.remove();
+    appendMessage("assistant", result.reply, result.events || []);
+    HISTORY.push({ role: "assistant", text: result.reply });
+    if (HISTORY.length > 12) HISTORY = HISTORY.slice(-12);
+    STATE = result.state;
+    render();
+  } catch (error) {
+    placeholder.remove();
+    appendMessage("assistant", `出错了：${error.message}`);
+  } finally {
+    button.disabled = false;
+    $("#form-chat").message.focus();
+  }
+}
+
+$("#form-chat").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const text = event.target.message.value;
+  event.target.message.value = "";
+  sendMessage(text);
+});
+
+// Ctrl/Cmd+Enter 发送
+$("#form-chat").message.addEventListener("keydown", (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+    event.preventDefault();
+    $("#form-chat").requestSubmit();
+  }
+});
+
 // ── 事件 ────────────────────────────────────────────────────────────────
 
 $("#form-actor").addEventListener("submit", async (event) => {
@@ -345,6 +418,19 @@ $("#btn-gate").addEventListener("click", async () => {
 
 $("#btn-gate-close").addEventListener("click", () => $("#gate-card").classList.add("hidden"));
 
-refresh().catch((error) => {
+async function boot() {
+  try {
+    MODEL = await api("/api/chat/status");
+  } catch {
+    MODEL = { available: false };
+  }
+  await refresh();
+  const opening = STATE.assertions.length === 0
+    ? "先说一句这个产品是干什么的，以及谁会用它。角色里别忘了没有界面的那种——定时任务、外部回调。"
+    : `我看到这份图里有 ${STATE.assertions.length} 条断言、${STATE.issues.length} 个缺口。想先补哪个？`;
+  appendMessage("assistant", opening);
+}
+
+boot().catch((error) => {
   document.body.innerHTML = `<pre style="padding:24px">加载失败：${error.message}</pre>`;
 });

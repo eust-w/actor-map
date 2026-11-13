@@ -51,9 +51,33 @@ body {
 
 .grid {
   display: grid; gap: 14px; padding: 14px 20px;
-  grid-template-columns: 260px minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(380px, 42%) minmax(0, 1fr);
+  align-items: start;
 }
 @media (max-width: 1080px) { .grid { grid-template-columns: 1fr; } }
+.right { display: grid; gap: 14px; min-width: 0; }
+
+/* 对话 */
+.chat-card { position: sticky; top: 76px; display: flex; flex-direction: column; height: calc(100vh - 100px); }
+.chat-log { flex: 1; overflow: auto; display: grid; gap: 10px; padding-right: 4px; align-content: start; }
+.msg { max-width: 92%; padding: 8px 11px; border-radius: 10px; font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+.msg.user { justify-self: end; background: var(--accent); color: #fff; }
+.msg.assistant { justify-self: start; background: var(--bg); border: 1px solid var(--line); }
+.msg.assistant.thinking { color: var(--muted); font-style: italic; }
+.msg .events { margin-top: 6px; display: grid; gap: 3px; }
+.msg .event {
+  font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ok); border-left: 2px solid var(--ok); padding-left: 6px; white-space: pre-wrap;
+}
+.msg .event.fail { color: var(--err); border-color: var(--err); }
+.chat-form { display: grid; gap: 8px; margin-top: 10px; grid-template-columns: 1fr auto; align-items: end; }
+.chat-form textarea {
+  font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--fg); resize: vertical; min-height: 46px;
+}
+.chat-hint { font-size: 11px; margin-top: 8px; }
+
+.list.compact { max-height: 28vh; }
 
 .card {
   border: 1px solid var(--line); border-radius: 12px; padding: 14px;

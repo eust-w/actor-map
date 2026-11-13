@@ -29,15 +29,27 @@ node src/cli.ts report --ir examples/expense/ir.json
 open examples/expense/map.html               # 看一眼地图长什么样
 ```
 
-想要一个能点的界面：
+**或者直接跟 AI 聊着建图**：
 
 ```bash
 npm run dev            # 起在 http://127.0.0.1:4173，自动开浏览器
 ```
 
-本地工作台（`web/` + `src/server/`，零依赖、无构建）：左边登记角色，中间是可操作地图（点状态高亮相关迁移），
-右边记断言，底部是缺口——**点一条缺口会把它提到的状态自动填进表单**。右上角的「跑门禁」直接调同一套检查。
-它和 CLI、pi 扩展共用同一批 handler，改的是同一份 `.actormap/ir.json`。
+左边是对话，右边是实时更新的地图、断言和缺口。你说「员工填完单子提交，主管批」，
+AI 会落断言、复述确认、然后基于校验器算出的缺口问下一句——**「3000 到 5000 之间走哪条？」这种问题不是它聪明，是区间推理算出来的**。
+
+对话不是聊天窗口，是**受约束的写入口**：模型只能通过 `ir_add_assertion` 这类工具改 IR，
+编不出不存在的状态，也没法悄悄改掉已确认的断言。每轮都把当前 IR 摘要重新注入 system prompt，
+所以聊到第 50 轮也不会忘——**对话是缓存，IR 才是记忆**。
+
+模型通道从环境变量读，支持任何 Gemini 兼容网关：
+
+```bash
+ACTORMAP_LLM_BASE=https://.../  ACTORMAP_LLM_KEY=...  ACTORMAP_LLM_MODEL=gemini-2.5-flash  npm run dev
+# 也认 GOOGLE_GEMINI_BASE_URL / GEMINI_API_KEY / GEMINI_MODEL
+```
+
+没配也能用：界面照常工作，只是没有对话，手动表单和门禁都在。
 
 接进 [pi](https://github.com/earendil-works/pi)：
 
@@ -475,6 +487,8 @@ src/gate/annotate.ts     发现 → 行内标注：diff 过滤、工作流命令
 src/gate/github.ts       PR files / comments / reviews（只依赖 fetch，可注入）
 src/gate/suggest.ts      反向建议：可粘贴的 IR YAML + 可执行的 change 载荷
 src/server/app.ts        HTTP API（和 CLI/扩展共用 handler）
+src/server/agent.ts      对话 agent：system prompt 注入 IR + 三个工具 + 工具循环
+src/server/llm.ts        Gemini 兼容客户端（可注入 fetcher，便于测试）
 src/server/index.ts      零依赖静态服务 + API
 web/                     本地工作台单页应用（原生 JS，无构建）
 src/report/checklist.ts  ✔/⚠ 断言清单
