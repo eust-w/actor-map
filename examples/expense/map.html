@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>报销系统 · 可操作地图</title>
+<style>
+  :root { color-scheme: light dark; --bg:#fff; --fg:#111; --muted:#6b7280; --line:#d1d5db; --card:#fafafa; --ok:#0f766e; --warn:#b45309; --err:#b91c1c; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0b0b0c; --fg:#e8e8ea; --muted:#9ca3af; --line:#333; --card:#141416; --ok:#2dd4bf; --warn:#fbbf24; --err:#f87171; } }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px; background:var(--bg); color:var(--fg); font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  h2 { font-size:15px; margin:0 0 12px; display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
+  .muted { color:var(--muted); font-weight:400; font-size:12px; }
+  .stats { display:flex; gap:16px; flex-wrap:wrap; margin:12px 0 20px; color:var(--muted); font-size:13px; }
+  .stats b { color:var(--fg); }
+  .card { border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:20px; overflow-x:auto; background:var(--card); }
+  .graph { color:var(--muted); display:block; }
+  .node rect { fill:var(--bg); stroke:var(--line); stroke-width:1.5; }
+  .node text { fill:var(--fg); font-size:13px; text-anchor:middle; }
+  .node.initial rect { stroke:var(--ok); stroke-width:2.5; }
+  .node.terminal rect { fill:var(--card); stroke-dasharray:5 4; }
+  path.edge { fill:none; stroke:var(--muted); stroke-width:1.6; }
+  path.edge.assumed { stroke-dasharray:6 5; stroke:var(--warn); }
+  path.edge.create { stroke:var(--ok); stroke-width:2.5; }
+  .edge-label { fill:var(--muted); font-size:11px; text-anchor:middle; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; }
+  tr.assumed td { color:var(--warn); }
+  code { font-size:12px; background:rgba(127,127,127,.12); padding:1px 5px; border-radius:4px; }
+  ul.issues { list-style:none; padding:0; margin:0; }
+  ul.issues li { border-left:3px solid var(--line); padding:8px 0 8px 12px; margin-bottom:10px; }
+  ul.issues li.err { border-color:var(--err); }
+  ul.issues li.warn { border-color:var(--warn); }
+  .tag { font-weight:600; margin-right:6px; }
+  .ask { color:var(--muted); font-size:12px; margin-top:4px; }
+</style>
+</head>
+<body>
+  <h1>报销系统 <span class="muted">v7 · 2026-11-12T08:30:00.000Z</span></h1>
+  <div class="stats">
+    <span><b>8</b> 条断言</span>
+    <span>✔ <b>7</b> 已确认</span>
+    <span>⚠ <b>1</b> 待确认</span>
+    <span>✖ <b>0</b> 错误</span>
+    <span>⚠ <b>2</b> 待确认项</span>
+    <span><b>4</b> 个角色</span>
+  </div>
+
+  <section class="card">
+  <h2>order <span class="muted">入口 draft · 终态 closed / paid</span></h2>
+  <svg viewBox="0 0 1108 392" width="1108" height="392" class="graph">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<path d="M 14 62 L 48 62" class="edge create confirmed"/>
+<path d="M 180 62 C 240 62, 208 62, 268 62" class="edge confirmed" marker-end="url(#arrow)"/>
+<text x="224" y="56" class="edge-label">submit</text>
+<path d="M 400 62 C 460 62, 428 62, 488 62" class="edge confirmed" marker-end="url(#arrow)"/>
+<text x="444" y="56" class="edge-label">approve</text>
+<path d="M 400 62 C 460 62, 428 270, 488 270" class="edge confirmed" marker-end="url(#arrow)"/>
+<text x="444" y="160" class="edge-label">escalate</text>
+<path d="M 400 62 C 576 62, -128 62, 48 62" class="edge confirmed" marker-end="url(#arrow)"/>
+<text x="224" y="56" class="edge-label">reject</text>
+<path d="M 620 62 C 680 62, 648 62, 708 62" class="edge confirmed" marker-end="url(#arrow)"/>
+<text x="664" y="56" class="edge-label">pay</text>
+<path d="M 620 270 C 686 270, 422 62, 488 62" class="edge assumed" marker-end="url(#arrow)"/>
+<text x="554" y="160" class="edge-label">confirm</text>
+<path d="M 400 62 C 460 62, 428 166, 488 166" class="edge confirmed" marker-end="url(#arrow)"/>
+<text x="444" y="108" class="edge-label">auto_close</text>
+<g class="node initial"><rect x="48" y="40" width="132" height="44" rx="10"/><text x="114" y="67">draft</text></g>
+<g class="node state"><rect x="268" y="40" width="132" height="44" rx="10"/><text x="334" y="67">submitted</text></g>
+<g class="node state"><rect x="488" y="40" width="132" height="44" rx="10"/><text x="554" y="67">approved</text></g>
+<g class="node terminal"><rect x="488" y="144" width="132" height="44" rx="10"/><text x="554" y="171">closed</text></g>
+<g class="node state"><rect x="488" y="248" width="132" height="44" rx="10"/><text x="554" y="275">pending_finance</text></g>
+<g class="node terminal"><rect x="708" y="40" width="132" height="44" rx="10"/><text x="774" y="67">paid</text></g>
+</svg>
+</section>
+
+  <section class="card">
+    <h2>缺口 <span class="muted">每条都带着下一句该问的话</span></h2>
+    <ul class="issues"><li class="warn"><span class="tag">⚠ missing_source</span> a_007（pending_finance --confirm--&gt; approved）没有原话依据。<div class="ask">问：这条是从哪句话里得到的？没有的话请确认它真的存在。</div></li>
+<li class="warn"><span class="tag">⚠ unconfirmed_terminal</span> order 的 &quot;closed&quot; 没有任何后续动作，被推定为终态。<div class="ask">问：&quot;closed&quot; 是终点吗？还是后面还有动作没说？</div></li></ul>
+  </section>
+
+  <section class="card">
+    <h2>角色</h2>
+    <table><thead><tr><th>角色</th><th>id</th><th>类型</th><th>触发</th><th>发起动作</th></tr></thead><tbody><tr><td>员工</td><td><code>employee</code></td><td>human</td><td>—</td><td>2</td></tr>
+<tr><td>直属主管</td><td><code>manager</code></td><td>human</td><td>—</td><td>3</td></tr>
+<tr><td>财务</td><td><code>finance</code></td><td>human</td><td>—</td><td>2</td></tr>
+<tr><td>超时关单任务</td><td><code>sweeper</code></td><td>system</td><td>submitted 状态超过 30 天未处理</td><td>1</td></tr></tbody></table>
+  </section>
+
+  <section class="card">
+    <h2>断言清单</h2>
+    <table><thead><tr><th>id</th><th>谁</th><th>动作</th><th>状态</th><th>条件</th><th>依据</th></tr></thead><tbody><tr class="confirmed"><td>✔ a_001</td><td><code>employee</code></td><td>create</td><td><code>∅</code> → <code>draft</code></td><td>—</td><td>员工点新建，填一张报销单</td></tr>
+<tr class="confirmed"><td>✔ a_002</td><td><code>employee</code></td><td>submit</td><td><code>draft</code> → <code>submitted</code></td><td>金额 &gt; 0 &amp;&amp; 已上传发票</td><td>员工填完点提交，有发票才能提</td></tr>
+<tr class="confirmed"><td>✔ a_003</td><td><code>manager</code></td><td>approve</td><td><code>submitted</code> → <code>approved</code></td><td>金额 &lt;= 5000</td><td>主管点通过</td></tr>
+<tr class="confirmed"><td>✔ a_004</td><td><code>manager</code></td><td>escalate</td><td><code>submitted</code> → <code>pending_finance</code></td><td>金额 &gt; 5000</td><td>超过五千要财务再看一眼</td></tr>
+<tr class="confirmed"><td>✔ a_005</td><td><code>manager</code></td><td>reject</td><td><code>submitted</code> → <code>draft</code></td><td>发票不合规</td><td>主管可以驳回，退回让员工改，但金额不让动</td></tr>
+<tr class="confirmed"><td>✔ a_006</td><td><code>finance</code></td><td>pay</td><td><code>approved</code> → <code>paid</code></td><td>—</td><td>财务打款</td></tr>
+<tr class="assumed"><td>⚠ a_007</td><td><code>finance</code></td><td>confirm</td><td><code>pending_finance</code> → <code>approved</code></td><td>—</td><td>（无原话）</td></tr>
+<tr class="confirmed"><td>✔ a_008</td><td><code>sweeper</code></td><td>auto_close</td><td><code>submitted</code> → <code>closed</code></td><td>now - submitted_at &gt; 30d</td><td>超过三十天没批就自动关单</td></tr></tbody></table>
+  </section>
+</body>
+</html>

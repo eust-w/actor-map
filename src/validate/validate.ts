@@ -7,6 +7,7 @@
 
 import type { Assertion, IRFile } from "../ir/types.ts";
 import { EMPTY_STATE, terminalKey } from "../ir/types.ts";
+import { checkGuards } from "./guards.ts";
 
 export type Severity = "error" | "warn";
 
@@ -24,7 +25,12 @@ export type IssueCode =
 	| "unconfirmed_terminal"
 	| "missing_source"
 	| "unguarded_branch"
-	| "self_loop";
+	| "self_loop"
+	| "branch_overlap"
+	| "branch_gap"
+	| "unsatisfiable_guard"
+	| "action_semantics_conflict"
+	| "ambiguous_owner";
 
 export interface Issue {
 	code: IssueCode;
@@ -335,8 +341,9 @@ export function validate(ir: IRFile): ValidationResult {
 		}
 	}
 
-	const errors = issues.filter((i) => i.severity === "error").length;
-	return {
+	issues.push(...checkGuards(ir, graphs));
+
+	const errors = issues.filter((i) => i.severity === "error").length;	return {
 		issues,
 		graphs,
 		stats: {

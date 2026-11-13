@@ -63,6 +63,31 @@ export interface IRFile {
 	assertions: Assertion[];
 	/** 已被确认过的终态，形如 "order:closed"；只写状态名表示对所有实体生效 */
 	terminals: string[];
+	/** 变更历史：改需求不是一个新文档，是一次可追溯的差量 */
+	changesets?: ChangeSet[];
+	/** 删掉的断言不静默消失，留墓碑 */
+	tombstones?: Tombstone[];
+}
+
+export type Change =
+	| { op: "add"; assertion: Omit<Assertion, "id"> & { id?: string } }
+	| { op: "modify"; id: string; patch: Partial<Pick<Assertion, "from" | "action" | "to" | "by" | "guards" | "verify" | "source" | "status">> }
+	| { op: "remove"; id: string }
+	| { op: "ack_terminal"; state: string };
+
+export interface ChangeSet {
+	id: string;
+	at: string;
+	/** 为什么改 —— 半年后最贵的信息 */
+	reason: string;
+	changes: Change[];
+}
+
+export interface Tombstone {
+	assertion: Assertion;
+	at: string;
+	reason: string;
+	changeSet: string;
 }
 
 export function emptyIR(product: string): IRFile {
@@ -73,6 +98,8 @@ export function emptyIR(product: string): IRFile {
 		actors: [],
 		assertions: [],
 		terminals: [],
+		changesets: [],
+		tombstones: [],
 	};
 }
 

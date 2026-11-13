@@ -24,6 +24,8 @@ export function loadIR(path: string, product = "未命名产品"): IRFile {
 		actors: parsed.actors ?? [],
 		assertions: parsed.assertions ?? [],
 		terminals: parsed.terminals ?? [],
+		changesets: parsed.changesets ?? [],
+		tombstones: parsed.tombstones ?? [],
 	};
 }
 
