@@ -1,7 +1,7 @@
 {
   "name": "actor-map",
-  "version": "0.7.0",
-  "description": "通过对话把需求聊定：把产品的角色可操作地图聊成一份带 ✔/⚠ 的断言清单，再用它在 PR 上做门禁",
+  "version": "0.8.0",
+  "description": "通过对话把需求聊定：把产品的角色可操作地图聊成一份带 ✔/⚠ 的断言清单，再用它拦住 PR",
   "type": "module",
   "license": "MIT",
   "bin": {
@@ -9,13 +9,13 @@
     "actor-map": "./dist/cli.js"
   },
   "files": [
-    "dist",
-    "src",
     "action.yml",
+    "src/",
     "AGENTS.md",
-    "examples",
+    "README.md",
     "LICENSE",
-    "README.md"
+    "examples/expense/ir.json",
+    "examples/expense/adapters/"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -23,10 +23,11 @@
     "demo": "node src/cli.ts report --ir examples/expense/ir.json",
     "demo:map": "node src/cli.ts render --ir examples/expense/ir.json --out examples/expense/map.html",
     "validate": "node src/cli.ts validate",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "start": "node src/cli.ts"
   },
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=22.18.0"
   },
   "repository": {
     "type": "git",
@@ -39,12 +40,12 @@
   "keywords": [
     "requirements",
     "state-machine",
-    "spec-driven",
-    "pr-gate",
-    "github-action",
     "pi-extension",
     "product-management",
-    "agent"
+    "agent",
+    "github-action",
+    "code-review",
+    "conformance-testing"
   ],
   "devDependencies": {
     "@types/node": "^22.20.5",

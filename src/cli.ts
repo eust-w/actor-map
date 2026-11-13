@@ -24,9 +24,19 @@ import { fetchPrFiles, listExisting, postReview, resolveContext } from "./gate/g
 import { formatConformance, summarize } from "./conformance/report.ts";
 
 const argv = process.argv.slice(2);
+
+function version(): string {
+	try {
+		const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version?: string };
+		return pkg.version ?? "0.0.0";
+	} catch {
+		return "0.0.0";
+	}
+}
+
 const command = argv[0] ?? "report";
 
-const USAGE = `actormap —— 把需求聊成可执行的断言，再用断言拦住 PR
+const USAGE = `actormap —— 把需求聊成可执行的断言，再用断言拦住 PR（v${version()}）
 
 用法：
   actormap init [产品名]
@@ -53,8 +63,7 @@ if (command === "--help" || command === "-h" || command === "help") {
 	process.exit(0);
 }
 if (command === "--version" || command === "-v") {
-	const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
-	console.log(pkg.version);
+	console.log(version());
 	process.exit(0);
 }
 const flag = (name: string): string | undefined => {
@@ -310,9 +319,8 @@ switch (command) {
 	}
 
 	default:
-		console.error(
-			`未知命令：${command}\n用法：\n  actormap init [产品名]\n  actormap validate\n  actormap report [--out f.md]\n  actormap render [--out .actormap/map.html]\n  actormap scan [repo] [--seed] [--force]\n  actormap drift [repo]\n  actormap gate [--repo .] [--adapter ./adapter.mjs] [--json] [--md-out f.md] [--strict]\n  actormap conformance --adapter ./adapter.mjs [--filter …] [--json]\n  actormap export [--out 目录]\n  actormap change --reason "…" --file changes.json\n  actormap history\n  通用参数：--ir <path>`,
-		);
+		console.error(`未知命令：${command}\n`);
+		console.log(USAGE);
 		process.exit(2);
 }
 

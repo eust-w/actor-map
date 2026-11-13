@@ -21,10 +21,26 @@ IR       .actormap/ir.json     给机器    进 git，可 diff，可回滚
 
 ## 30 秒上手
 
+不需要 clone：
+
+```bash
+npx github:eust-w/actor-map --help
+```
+
+或者装到本地用：
+
+```bash
+npm i -D actor-map        # 或 npm link
+npx actormap init "报销系统"
+npx actormap gate --repo .
+```
+
+想跑它的测试和示例：
+
 ```bash
 git clone https://github.com/eust-w/actor-map.git
 cd actor-map
-npm test                                     # 51 条测试，零依赖
+npm test                                     # 96 条测试，零依赖
 node src/cli.ts report --ir examples/expense/ir.json
 open examples/expense/map.html               # 看一眼地图长什么样
 ```
@@ -315,7 +331,55 @@ git diff --no-index old/ new/ > pr.patch
 actormap gate --dry-run --diff pr.patch --quiet | jq '.comments'
 ```
 
-### 挂到别人的仓库上
+### 挂到别人的仓库上：GitHub Action
+
+```yaml
+# .github/workflows/spec-gate.yml
+name: spec-gate
+on: [pull_request]
+
+permissions:
+  contents: read
+  pull-requests: write        # 要贴行内评论就必须有这一行
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: eust-w/actor-map@v1
+        with:
+          ir: .actormap/ir.json
+          repo: .
+          adapter: .actormap/adapter.mjs
+          strict: "false"
+```
+
+输出的 `result` 可以直接当 job 状态用：
+
+```yaml
+      - uses: eust-w/actor-map@v1
+        id: spec
+      - if: steps.spec.outputs.result == 'fail'
+        run: echo "需求或实现有问题，看上面"
+```
+
+也可以用可复用工作流（一次性把 checkout / Node / 贴评论都准备好）：
+
+```yaml
+jobs:
+  spec-gate:
+    uses: eust-w/actor-map/.github/workflows/gate-reusable.yml@main
+    with:
+      ir: .actormap/ir.json
+      repo: .
+      adapter: .actormap/adapter.mjs
+```
+
+两者跑的是同一套代码，区别只是谁来做 checkout。
+
+<details>
+<summary>更早的写法（直接用可复用工作流）</summary>
 
 这是一个可复用工作流：
 
@@ -332,6 +396,8 @@ jobs:
 ```
 
 在 GitHub Actions 里跑时，摘要会自动写进 `$GITHUB_STEP_SUMMARY`，PR 页面直接能看到哪条断言被破了。
+
+</details>
 
 ## 契约测试：把真实实现接进来
 
