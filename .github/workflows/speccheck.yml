@@ -60,9 +60,12 @@ jobs:
             import { readFileSync } from "node:fs";
             const p = JSON.parse(readFileSync("/tmp/review.json", "utf8"));
             if (p.comments.length !== 1) throw new Error("应当只有 1 条行内评论，实际 " + p.comments.length);
-            if (p.comments[0].line !== 59) throw new Error("行号应当是 59，实际 " + p.comments[0].line);
+            if (p.comments[0].start_line !== 56 || p.comments[0].line !== 63) {
+              throw new Error("suggestion 范围应当是 56→63，实际 " + p.comments[0].start_line + "→" + p.comments[0].line);
+            }
+            if (!p.comments[0].body.includes("```suggestion")) throw new Error("缺少 suggestion 块");
             if (!p.comments[0].body.includes("actormap:drift:")) throw new Error("缺少去重标记");
-            console.log("行内标注 ok：line 59，带去重标记");
+            console.log("行内标注 ok：suggestion 56→63，带去重标记");
           '
 
       - name: 导出四份投影
