@@ -54,8 +54,8 @@ export function detectDrift(ir, scan) {
     }
     return { root: scan.root, onlyInIR, onlyInCode, matched };
 }
-export function scanAndDrift(ir, root) {
-    return detectDrift(ir, scanRepo(root));
+export function scanAndDrift(ir, root, options = {}) {
+    return detectDrift(ir, scanRepo(root, options));
 }
 export function formatDrift(report) {
     const lines = [];

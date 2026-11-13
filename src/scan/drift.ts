@@ -12,6 +12,7 @@ import type { Assertion, IRFile } from "../ir/types.ts";
 import { EMPTY_STATE } from "../ir/types.ts";
 import type { ScanReport } from "./scanner.ts";
 import { scanRepo } from "./scanner.ts";
+import type { ScanOptions } from "./scanner.ts";
 
 export interface DriftItem {
 	assertion: Assertion;
@@ -75,8 +76,8 @@ export function detectDrift(ir: IRFile, scan: ScanReport): DriftReport {
 	return { root: scan.root, onlyInIR, onlyInCode, matched };
 }
 
-export function scanAndDrift(ir: IRFile, root: string): DriftReport {
-	return detectDrift(ir, scanRepo(root));
+export function scanAndDrift(ir: IRFile, root: string, options: ScanOptions = {}): DriftReport {
+	return detectDrift(ir, scanRepo(root, options));
 }
 
 export function formatDrift(report: DriftReport): string {

@@ -15,7 +15,8 @@
     "AGENTS.md",
     "examples",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "web"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -23,7 +24,9 @@
     "demo": "node src/cli.ts report --ir examples/expense/ir.json",
     "demo:map": "node src/cli.ts render --ir examples/expense/ir.json --out examples/expense/map.html",
     "validate": "node src/cli.ts validate",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "dev": "node src/server/index.ts --open",
+    "serve": "node src/server/index.ts"
   },
   "engines": {
     "node": ">=22.19.0"

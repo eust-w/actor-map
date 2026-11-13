@@ -29,6 +29,16 @@ node src/cli.ts report --ir examples/expense/ir.json
 open examples/expense/map.html               # 看一眼地图长什么样
 ```
 
+想要一个能点的界面：
+
+```bash
+npm run dev            # 起在 http://127.0.0.1:4173，自动开浏览器
+```
+
+本地工作台（`web/` + `src/server/`，零依赖、无构建）：左边登记角色，中间是可操作地图（点状态高亮相关迁移），
+右边记断言，底部是缺口——**点一条缺口会把它提到的状态自动填进表单**。右上角的「跑门禁」直接调同一套检查。
+它和 CLI、pi 扩展共用同一批 handler，改的是同一份 `.actormap/ir.json`。
+
 接进 [pi](https://github.com/earendil-works/pi)：
 
 ```bash
@@ -464,6 +474,9 @@ src/gate/index.ts        三项检查合一 + 豁免/降级 + Markdown 摘要
 src/gate/annotate.ts     发现 → 行内标注：diff 过滤、工作流命令、review 载荷
 src/gate/github.ts       PR files / comments / reviews（只依赖 fetch，可注入）
 src/gate/suggest.ts      反向建议：可粘贴的 IR YAML + 可执行的 change 载荷
+src/server/app.ts        HTTP API（和 CLI/扩展共用 handler）
+src/server/index.ts      零依赖静态服务 + API
+web/                     本地工作台单页应用（原生 JS，无构建）
 src/report/checklist.ts  ✔/⚠ 断言清单
 src/report/html.ts       单文件 HTML 地图
 src/extension/handlers.ts 九个工具的实际逻辑（可单测）

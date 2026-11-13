@@ -160,6 +160,11 @@ const ROUTE_PATTERNS: Array<{ re: RegExp; name: number; method?: number }> = [
 	{ re: /\bdef\s+(\w+)\s*\([^)]*\)\s*:\s*#\s*(?:GET|POST|PUT|PATCH|DELETE)\s+(\S+)/, name: 1 },
 ];
 
+/** 这些不是"业务动作"，是控制流关键字 —— 误当成 action 会污染整份地图 */
+const NOT_ACTIONS = new Set([
+	"if", "for", "while", "switch", "catch", "function", "return", "else", "try", "do", "with", "case", "constructor",
+]);
+
 const FUNC_PATTERNS: RegExp[] = [
 	/\b(?:async\s+)?function\s+(\w+)/,
 	/\bconst\s+(\w+)\s*=\s*(?:async\s*)?\(/,
@@ -216,8 +221,17 @@ function entityFromPath(path: string): string | undefined {
 	return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
-export function scanRepo(root: string): ScanReport {
-	const files = walk(root);
+export interface ScanOptions {
+	/** 相对仓库根的路径前缀，命中就不扫（比如契约测试适配器：它是替身，不是实现） */
+	exclude?: string[];
+}
+
+export function scanRepo(root: string, options: ScanOptions = {}): ScanReport {
+	const excluded = (options.exclude ?? []).map((p) => p.replace(/\\/g, "/").replace(/^\.\//, ""));
+	const files = walk(root).filter((file) => {
+		const rel = relative(root, file).replace(/\\/g, "/");
+		return !excluded.some((pattern) => rel === pattern || rel.startsWith(`${pattern}/`));
+	});
 	const findings: Finding[] = [];
 	const questions: string[] = [];
 	const warnings: string[] = [];
@@ -325,14 +339,14 @@ export function scanRepo(root: string): ScanReport {
 					break;
 				}
 			}
-			if (!currentAction) {
-				for (const pattern of FUNC_PATTERNS) {
-					const m = line.match(pattern);
-					if (m) {
-						currentAction = m[1];
-						break;
-					}
-				}
+			// 每遇到一个新的函数/方法就更新动作名。
+			// 早先写成「只在为空时设置」，结果文件里第一个函数的名字会粘住整份文件。
+			for (const pattern of FUNC_PATTERNS) {
+				const m = line.match(pattern);
+				if (!m) continue;
+				const name = m[1];
+				if (!NOT_ACTIONS.has(name)) currentAction = name;
+				break;
 			}
 
 			// 状态迁移

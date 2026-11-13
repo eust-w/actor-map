@@ -114,7 +114,12 @@ export async function runGate(ir, options) {
         });
     }
     else {
-        const report = scanAndDrift(ir, repo);
+        const adapter = options.adapter ? resolve(options.cwd, options.adapter) : defaultAdapter(options.cwd);
+        // 适配器是替身，不是实现：让它进 drift 扫描必然误报
+        const exclude = adapter && adapter.startsWith(repo)
+            ? [relative(repo, adapter).replace(/\\/g, "/")]
+            : [];
+        const report = scanAndDrift(ir, repo, { exclude });
         const waived = [];
         const unwaived = report.onlyInCode.filter((item) => {
             if (!isWaived(item.assertion, waivers.allowDrift))

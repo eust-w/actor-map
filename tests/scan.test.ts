@@ -97,3 +97,48 @@ test("扫描结果是一张能过校验器的图", () => {
 		rmSync(root, { recursive: true, force: true });
 	}
 });
+
+test("控制流关键字不会被当成动作名", () => {
+	const root = mkdtempSync(join(tmpdir(), "actormap-scan3-"));
+	try {
+		mkdirSync(join(root, "src"), { recursive: true });
+		writeFileSync(
+			join(root, "src", "order.service.ts"),
+			[
+				"function must(condition) { if (!condition) throw new Error('x'); }",
+				"export default {",
+				"  act(id, action, ctx) {",
+				"    switch (action) {",
+				'      case "submit":',
+				'        must(order.status === "draft");',
+				'        order.status = "submitted";',
+				"    }",
+				"  },",
+				"};",
+			].join("\n"),
+		);
+		const report = scanRepo(root);
+		const actions = report.skeleton.assertions.map((a) => a.action);
+		assert.ok(!actions.includes("must"), `不该出现 must：${actions.join(",")}`);
+		assert.ok(!actions.includes("switch"), `不该出现 switch：${actions.join(",")}`);
+		assert.ok(actions.includes("act"), `应当用最近的方法名：${actions.join(",")}`);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("exclude 能跳过契约测试适配器这类替身文件", () => {
+	const root = mkdtempSync(join(tmpdir(), "actormap-scan4-"));
+	try {
+		mkdirSync(join(root, "src"), { recursive: true });
+		mkdirSync(join(root, "adapters"), { recursive: true });
+		writeFileSync(join(root, "src", "order.ts"), 'function f(){ order.status = "paid"; }');
+		writeFileSync(join(root, "adapters", "fake.mjs"), 'function g(){ order.status = "fake"; }');
+		const all = scanRepo(root);
+		assert.ok(all.skeleton.assertions.some((a) => a.to === "fake"));
+		const filtered = scanRepo(root, { exclude: ["adapters/fake.mjs"] });
+		assert.ok(!filtered.skeleton.assertions.some((a) => a.to === "fake"));
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
