@@ -211,6 +211,26 @@ actormap gate --repo . --adapter .actormap/adapter.mjs
 | Workflow commands `::error file=…,line=…` | 零权限 | Actions 里自动出现在 diff 上 |
 | PR review comments | `pull-requests: write` | 能带解释、能被讨论、能 resolve |
 
+#### 能一键 Apply 的 suggestion
+
+不是所有发现都停在“评论”这一步。`drift-extra` 会直接给一个可点 **Apply suggestion** 的删除块：
+
+```
+**需求里没有这条迁移：submitted --cancel--> cancelled**
+IR 里没有确认过这条。要么补进 IR，要么删掉这段代码。
+
+​```suggestion
+​```
+```
+
+渲染成 `start_line: 53 → line: 60`，正好覆盖整个 `router.post(...)` handler。点一下，这段代码就没了。
+
+能给出这个块，靠的是扫描器记下的**完整语句块范围**，而不是猜：
+
+- 只删 `order.status = "cancelled"` 这一行会留下语法破损的 `if`，所以范围必须是整个 handler。
+- **只有这个块里恰好一条迁移时才给范围。** 块里混了别的行为，删整块会误伤 —— 这时宁可不给建议，退化成普通评论。
+- 范围必须**整段落在本次 diff 的新增行里**。被 diff 截断就不出 suggestion（GitHub 会 422，而且真删出来也是坏代码）。
+
 三条规则：
 
 1. **只标本次新增的行。** 注释在别人的上下文行上会让 review 变吵，所以先拿 PR 的 patch 算出新增行号，落不进去的不丢——降级写进 review 正文的折叠块里。
