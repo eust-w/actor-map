@@ -20,7 +20,7 @@ IR       .actormap/ir.json     给机器    进 git，可 diff，可回滚
 ```bash
 git clone https://github.com/eust-w/actor-map.git
 cd actor-map
-npm test                                     # 37 条测试，零依赖
+npm test                                     # 51 条测试，零依赖
 node src/cli.ts report --ir examples/expense/ir.json
 open examples/expense/map.html               # 看一眼地图长什么样
 ```
@@ -149,7 +149,7 @@ actormap change --reason "…" --file changes.json
 actormap history
 ```
 
-## 一份来源，三份交付
+## 一份来源，四份交付
 
 ```bash
 actormap export
@@ -209,7 +209,7 @@ src/validate/guards.ts   条件区间推理：重叠、空洞、自相矛盾
 src/scan/scanner.ts      仓库扫描：实体/状态/迁移/角色，只收有证据的
 src/report/checklist.ts  ✔/⚠ 断言清单
 src/report/html.ts       单文件 HTML 地图
-src/extension/handlers.ts 五个工具的实际逻辑（可单测）
+src/extension/handlers.ts 七个工具的实际逻辑（可单测）
 src/extension/index.ts   pi 绑定层，只声明 schema
 ```
 
