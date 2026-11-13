@@ -57,7 +57,7 @@ permissions:
 
 steps:
   - uses: actions/checkout@v4
-  - uses: eust-w/actor-map@v0.7.0
+  - uses: eust-w/actor-map@v1
     with:
       ir: .actormap/ir.json
       repo: .
@@ -71,6 +71,8 @@ pi --extension ./.pi/extensions/actormap.ts
 ```
 
 三个入口共用一套代码：`src/` 是源码，`dist/` 是编译产物（`bin` 指向它——Node 拒绝对 `node_modules` 里的文件做类型剥离，所以不能直接发 `.ts`）。`tests/entrypoints.test.ts` 钉住这三个入口不许漂移。
+
+Action 在 [GitHub Marketplace](https://github.com/marketplace/actions/actormap-gate) 上，也可以直接 `uses: eust-w/actor-map@v1`。
 
 ## 五轮对话之后
 
