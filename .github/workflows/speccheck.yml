@@ -30,3 +30,12 @@ jobs:
             console.log('runner ok');
           });
           "
+      - name: 契约测试（正确实现，应全绿）
+        run: node src/cli.ts conformance --ir examples/expense/ir.json --adapter ./examples/expense/adapters/expense-service.mjs
+      - name: 契约测试（有 bug 的实现，必须失败）
+        run: |
+          if node src/cli.ts conformance --ir examples/expense/ir.json --adapter ./examples/expense/adapters/expense-service-broken.mjs; then
+            echo "broken adapter 竟然通过了 —— 契约测试失去作用"; exit 1
+          else
+            echo "按预期抓到了 bug"
+          fi

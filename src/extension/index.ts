@@ -14,6 +14,7 @@ import {
 	addActorTool,
 	addAssertionTool,
 	changeTool,
+	conformanceTool,
 	driftTool,
 	exportTool,
 	mapSummary,
@@ -22,6 +23,7 @@ import {
 } from "./handlers.ts";
 import type {
 	AddActorParams,
+	ConformanceParams,
 	AddAssertionParams,
 	ChangeParams,
 	DriftParams,
@@ -194,6 +196,23 @@ export default function actorMapExtension(pi: ExtensionAPI) {
 			}),
 			async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 				const result = driftTool(params as DriftParams, cwdOf(ctx));
+				return { content: [{ type: "text", text: result.text }], details: result.details };
+			},
+		}),
+	);
+
+	pi.registerTool(
+		defineTool({
+			name: "ir_conformance",
+			label: "契约测试",
+			description:
+				"把真实实现接进参考状态机跑契约测试。适配器只需提供 create / act / state 三个方法。每条断言会跑正例（边界值）+ 每个条件的反例 + 角色反例，任一处不一致就是契约破了。",
+			parameters: Type.Object({
+				adapter: Type.String({ description: "适配器文件路径（相对当前目录），export default { create, act, state }" }),
+				filter: Type.Optional(Type.String({ description: "只跑某一类或某个断言，如 positive / a_003" })),
+			}),
+			async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+				const result = await conformanceTool(params as ConformanceParams, cwdOf(ctx));
 				return { content: [{ type: "text", text: result.text }], details: result.details };
 			},
 		}),

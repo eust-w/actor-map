@@ -16,6 +16,8 @@ import { renderHTML } from "./report/html.ts";
 import { exportAll } from "./export/index.ts";
 import { formatScanReport, scanRepo } from "./scan/scanner.ts";
 import { formatDrift, scanAndDrift } from "./scan/drift.ts";
+import { runConformance } from "./conformance/harness.ts";
+import { formatConformance, summarize } from "./conformance/report.ts";
 
 const argv = process.argv.slice(2);
 const command = argv[0] ?? "report";
@@ -156,6 +158,22 @@ switch (command) {
 		break;
 	}
 
+	case "conformance": {
+		const ir = loadOrExit();
+		const adapterPath = flag("adapter");
+		if (!adapterPath) {
+			console.error("用法：actormap conformance --adapter ./adapter.mjs [--filter positive|guard-negative|actor-negative|<断言id>] [--json]");
+			process.exit(2);
+		}
+		const report = await runConformance(ir, resolve(process.cwd(), adapterPath), {
+			filter: flag("filter"),
+		});
+		if (has("json")) console.log(JSON.stringify(report, null, 2));
+		else console.log(formatConformance(report));
+		process.exitCode = summarize(report).ok ? 0 : 1;
+		break;
+	}
+
 	case "history": {
 		const ir = loadOrExit();
 		const sets = ir.changesets ?? [];
@@ -183,7 +201,7 @@ switch (command) {
 
 	default:
 		console.error(
-			`未知命令：${command}\n用法：\n  actormap init [产品名]\n  actormap validate\n  actormap report [--out f.md]\n  actormap render [--out .actormap/map.html]\n  actormap scan [repo] [--seed] [--force]\n  actormap drift [repo]\n  actormap export [--out 目录]\n  actormap change --reason "…" --file changes.json\n  actormap history\n  通用参数：--ir <path>`,
+			`未知命令：${command}\n用法：\n  actormap init [产品名]\n  actormap validate\n  actormap report [--out f.md]\n  actormap render [--out .actormap/map.html]\n  actormap scan [repo] [--seed] [--force]\n  actormap drift [repo]\n  actormap conformance --adapter ./adapter.mjs [--filter …] [--json]\n  actormap export [--out 目录]\n  actormap change --reason "…" --file changes.json\n  actormap history\n  通用参数：--ir <path>`,
 		);
 		process.exit(2);
 }

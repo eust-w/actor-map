@@ -16,6 +16,8 @@ import { renderHTML } from "../report/html.ts";
 import { formatScanReport, scanRepo } from "../scan/scanner.ts";
 import { exportAll } from "../export/index.ts";
 import { formatDrift, scanAndDrift } from "../scan/drift.ts";
+import { runConformance } from "../conformance/harness.ts";
+import { formatConformance, summarize } from "../conformance/report.ts";
 
 export interface HandlerResult {
 	text: string;
@@ -205,6 +207,32 @@ export function driftTool(params: DriftParams, cwd: string): HandlerResult {
 			matched: report.matched,
 			onlyInCode: report.onlyInCode.map((d) => ({ assertion: d.assertion, reason: d.reason })),
 			onlyInIR: report.onlyInIR.map((d) => ({ assertion: d.assertion, reason: d.reason })),
+		},
+	};
+}
+
+export interface ConformanceParams {
+	adapter: string;
+	filter?: string;
+}
+
+export async function conformanceTool(params: ConformanceParams, cwd: string): HandlerResult {
+	const { ir } = load(cwd);
+	const report = await runConformance(ir, resolve(cwd, params.adapter), { filter: params.filter });
+	const summary = summarize(report);
+	return {
+		text: formatConformance(report),
+		details: {
+			ok: summary.ok,
+			passed: summary.passed,
+			failed: summary.failed,
+			skipped: summary.skipped,
+			results: report.results.map((r) => ({
+				id: r.case.id,
+				kind: r.case.kind,
+				outcome: r.outcome,
+				detail: r.detail,
+			})),
 		},
 	};
 }

@@ -61,7 +61,7 @@ AI：落了两条：
 最后那一问不是 AI 聪明，是校验器算出来的：两条区间的并集没覆盖 `(3000, 5000]`。
 **缺口不是失败，缺口就是下一次对话的议程。**
 
-## 七个工具
+## 八个工具
 
 模型改不了 IR 文件，只能走工具 —— 格式错误在类型边界就被挡住，幻觉没有落库的路径。
 
@@ -73,7 +73,8 @@ AI：落了两条：
 | `ir_validate` | 零 LLM 校验，返回错误 + 「该问什么」 |
 | `ir_scan` | 从代码仓库反抽骨架，只收有 `file:line` 证据的迁移 |
 | `ir_drift` | 代码和 IR 双向比对：偷偷加的需求 / 没实现的需求 |
-| `ir_export` | 导出 tools.json + openapi.yaml + acceptance.md |
+| `ir_export` | 导出 tools.json + openapi.yaml + acceptance.md + runner.mjs |
+| `ir_conformance` | 把真实实现接进参考状态机跑契约测试 |
 
 ## 校验器会抓什么
 
@@ -144,10 +145,75 @@ actormap report --out .actormap/map.md
 actormap render --out .actormap/map.html
 actormap scan <repo> [--seed] [--force]
 actormap drift <repo>                      # 代码多了没确认的迁移 → 退出码 1
+actormap conformance --adapter ./a.mjs     # 契约测试，有失败 → 退出码 1
 actormap export --out .actormap/export
 actormap change --reason "…" --file changes.json
 actormap history
 ```
+
+## 契约测试：把真实实现接进来
+
+这是整条链路合上的地方。适配器只交出三个方法，业务代码一行不用改：
+
+```js
+// adapter.mjs
+const orders = new Map();
+
+export default {
+  name: "expense-service",
+  create(actor, ctx) {           // 新建，返回 id
+    if (actor !== "employee") throw new Error("只有员工能建");
+    const id = String(orders.size + 1);
+    orders.set(id, { status: "draft", amount: Number(ctx.金额 ?? 0) });
+    return id;
+  },
+  act(id, action, ctx, actor) {   // 执行；抛错或返回 { ok: false } 表示拒绝
+    const row = orders.get(id);
+    if (action === "approve" && !(ctx.金额 <= 5000)) throw new Error("超过 5000 要财务复核");
+    ...
+  },
+  state(id) { return orders.get(id).status; },  // 读当前状态
+};
+```
+
+```bash
+actormap conformance --adapter ./adapter.mjs
+```
+
+```
+报销系统 v7 × expense-service：12/12 通过
+```
+
+它跑三类用例，全部由断言推导，不需要手写：
+
+| 用例 | 期望 | 抓什么 |
+| --- | --- | --- |
+| 正例 | 成功且落到 `to` | 功能没实现 |
+| 条件反例 | 被拒且状态不变 | 阈值写错、校验被绕过、先写库再校验 |
+| 角色反例 | 被拒 | 权限漏检 |
+
+取值一律用**边界值**：`金额 <= 5000` 的正例取 5000，反例取 5001。
+差一错误是需求实现里最高频的 bug，也只有边界值能抓到。
+
+仓库里带了一个故意写坏两处的实现，可以直接看它被抓：
+
+```bash
+actormap conformance --adapter ./examples/expense/adapters/expense-service-broken.mjs
+```
+
+```
+报销系统 v7 × expense-service · 两处 bug：7/12 通过 · 3 失败
+  ✖ a_003 反例·条件：submitted --approve--> approved（manager）
+    期望被拒绝，实现却放行了（状态 approved）      输入：金额=5001
+  ✖ a_006 反例·角色：approved --pay--> paid（employee）
+    期望被拒绝，实现却放行了（状态 paid）
+```
+
+判分的不是 `cases.ts`，是导出的 `runner.mjs` 本身 —— 也就是说，
+**你手上拿去给 coding agent 当尺子的那个文件，就是契约测试的裁判**，不存在两套逻辑。
+
+解析不了的条件（`已上传发票`、`now - submitted_at > 30d`）不猜：整条断言标为 unchecked，
+列在报告末尾等人确认。宁可漏测，不可误判。
 
 ## 一份来源，四份交付
 
@@ -207,9 +273,12 @@ src/ir/changes.ts        变更集 + 影响分析（前后各跑一次校验做�
 src/validate/validate.ts 图算法：可达性、死锁、孤儿、终态
 src/validate/guards.ts   条件区间推理：重叠、空洞、自相矛盾
 src/scan/scanner.ts      仓库扫描：实体/状态/迁移/角色，只收有证据的
+src/scan/drift.ts        代码 ↔ IR 双向漂移
+src/conformance/cases.ts 从断言推导正例/条件反例/角色反例（边界值）
+src/conformance/harness.ts 接适配器执行，用 runner.mjs 当裁判
 src/report/checklist.ts  ✔/⚠ 断言清单
 src/report/html.ts       单文件 HTML 地图
-src/extension/handlers.ts 七个工具的实际逻辑（可单测）
+src/extension/handlers.ts 八个工具的实际逻辑（可单测）
 src/extension/index.ts   pi 绑定层，只声明 schema
 ```
 
@@ -225,8 +294,8 @@ src/extension/index.ts   pi 绑定层，只声明 schema
 ## 还没做的
 
 - 跨角色的说法前后不一致检测（同一个 PM 换个帽子说了相反的话）
-- 真正跑在业务代码上的契约测试（现在给的是验收表、反例清单和参考状态机，
-  还缺「把业务实现接进参考状态机对比」的那一层）
+- 多实体流程（当前一条断言只能挂一个 entity，跨对象的事务没有建模）
+- 一次调用改多个状态的场景（现在假设一条动作只改一个实体）
 - drift 接入 PR 门禁（`.github/workflows/speccheck.yml` 已经跑了测试和校验，
   还没在真实仓库上挂 drift）
 - 图形化编辑（当前是终端对话 + 生成的自包含 HTML 地图）
